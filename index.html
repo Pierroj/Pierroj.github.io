@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pickleball Matchmaker Pro (14-Rules Edition)</title>
+    <title>Pickleball Matchmaker</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -14,12 +14,13 @@
     
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Prompt:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap" rel="stylesheet">
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+	<script src="/matching.js"></script>
 
     <style>
-        body { font-family: 'Google Sans', 'Prompt', sans-serif; }
+        body { font-family: 'Kanit', 'Prompt', sans-serif; }
         h1, h2, h3, .font-prompt { font-family: 'Prompt', sans-serif !important; }
         
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -52,12 +53,16 @@
 <body class="bg-gray-100 dark:bg-gray-900 p-4 sm:p-6 min-h-screen transition-colors duration-300">
 
     <div class="max-w-[1400px] mx-auto">
-        <div class="no-print flex justify-between items-center mb-8 relative">
-            <div class="w-10"></div>
-            <h1 class="text-3xl md:text-4xl font-bold text-center text-green-600 dark:text-green-500 font-prompt">🏓 ระบบจัดคู่ Pickleball</h1>
-            <button onclick="toggleDarkMode()" class="w-10 h-10 rounded-full bg-white dark:bg-gray-800 shadow flex items-center justify-center text-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                <span id="themeIcon">🌙</span>
-            </button>
+        <div class="no-print relative flex items-center justify-center mb-8 h-12">
+            <h1 class="text-2xl sm:text-3xl md:text-4xl font-bold text-center text-green-600 dark:text-green-500 font-prompt">ระบบจัดคู่ Pickleball</h1>
+            
+            <div class="absolute right-0 flex items-center gap-1.5 sm:gap-2">
+                <span class="text-xs sm:text-sm text-yellow-500 dark:text-gray-500 transition-colors">☀️</span>
+                <button onclick="toggleDarkMode()" class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full bg-gray-300 dark:bg-green-500 transition-colors duration-300 focus:outline-none shadow-inner">
+                    <span class="inline-block h-4 w-4 transform rounded-full bg-white shadow-md transition-transform duration-300 translate-x-1 dark:translate-x-6"></span>
+                </button>
+                <span class="text-xs sm:text-sm text-gray-400 dark:text-yellow-300 transition-colors">🌙</span>
+            </div>
         </div>
 
         <div id="mainLayout" class="flex flex-col items-center gap-6 transition-all duration-500">
@@ -101,7 +106,7 @@
                             
                             <label class="flex items-center gap-3 cursor-pointer bg-white dark:bg-gray-700/30 p-4 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                                 <input type="checkbox" id="enableScoreTable" checked class="w-5 h-5 text-green-600 dark:text-green-500 rounded bg-white dark:bg-gray-600 border-gray-300 dark:border-gray-500 focus:ring-green-500">
-                                <span class="text-sm md:text-base font-medium text-gray-600 dark:text-gray-400">สร้างตารางบันทึกคะแนนด้วย</span>
+                                <span class="text-sm md:text-base font-medium text-gray-700 dark:text-gray-300">สร้างตารางบันทึกคะแนนด้วย <span class="text-xs text-red-500 font-normal">(ปิดอัตโนมัติหากเกิน 20 เกม หรือ 10 คน)</span></span>
                             </label>
                         </div>
                     </div>
@@ -160,13 +165,10 @@
 
     <script>
         function applyTheme(isDark) {
-            const icon = document.getElementById('themeIcon');
             if (isDark) {
                 document.documentElement.classList.add('dark');
-                icon.textContent = '☀️';
             } else {
                 document.documentElement.classList.remove('dark');
-                icon.textContent = '🌙';
             }
         }
 
@@ -225,9 +227,15 @@
 
         function generateMatches() {
             if (players.length < 4) return alert('ต้องมีผู้เล่นอย่างน้อย 4 คนครับ');
+            
             const totalGamesInput = parseInt(document.getElementById('totalGames').value);
             const initialPreventBeginner = document.getElementById('preventBeginner').checked;
-            const enableScoreTable = document.getElementById('enableScoreTable').checked;
+            let enableScoreTable = document.getElementById('enableScoreTable').checked;
+            
+            if (totalGamesInput > 20 || players.length > 10) {
+                enableScoreTable = false;
+                document.getElementById('enableScoreTable').checked = false; 
+            }
             
             const mainLayout = document.getElementById('mainLayout');
             mainLayout.classList.remove('items-center');
@@ -272,15 +280,27 @@
                         validCombos = combos.filter(S => !S.some(p => p.consecutiveRests >= safeLimit));
                     }
 
+                    // --- NEW RULE: บังคับมือใหม่พักพร้อมกัน ห้ามแยกพักเดี่ยว ---
+                    if (totalBeginners > 0) {
+                        let strictCombos = validCombos.filter(S => {
+                            const begCount = S.filter(p => p.isBeginner).length;
+                            return begCount === 0 || begCount === Math.min(k, totalBeginners);
+                        });
+                        if (strictCombos.length > 0) validCombos = strictCombos;
+                    }
+
                     validCombos.sort(() => Math.random() - 0.5);
                     validCombos.sort((a, b) => {
                         const gA = a.reduce((s, p) => s + p.gamesPlayed, 0);
                         const gB = b.reduce((s, p) => s + p.gamesPlayed, 0);
                         if (gA !== gB) return gB - gA;
 
-                        const begA = a.filter(p => p.isBeginner).length;
-                        const begB = b.filter(p => p.isBeginner).length;
-                        if (begA !== begB) return begB - begA;
+                        // ยกเว้นเกมแรก (i === 1) ไม่ต้องดึงมือใหม่ไปพักก่อน เพื่อให้สุ่มแฟร์ๆ
+                        if (i > 1) {
+                            const begA = a.filter(p => p.isBeginner).length;
+                            const begB = b.filter(p => p.isBeginner).length;
+                            if (begA !== begB) return begB - begA;
+                        }
 
                         return 0;
                     });
@@ -358,7 +378,6 @@
 
             renderHTMLSummary(matches, enableScoreTable);
             
-            // วาดรูปลำดับแมตช์อัตโนมัติ (ซ่อนอยู่หลังบ้าน)
             document.fonts.ready.then(() => {
                 drawMatchListCanvas(matches);
                 if(enableScoreTable) {
@@ -423,7 +442,6 @@
             `).join('');
         }
 
-        // ================= วาดรูปลำดับแมตช์ (A4) คลีนๆ ไม่มีเหย้าเยือนและพัก =================
         function drawMatchListCanvas(matches) {
             const canvas = document.getElementById('matchListCanvas');
             const ctx = canvas.getContext('2d');
@@ -433,11 +451,9 @@
             canvas.height = baseHeight * scale;
             ctx.scale(scale, scale);
 
-            // พื้นหลังขาว
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, baseWidth, baseHeight);
 
-            // หัวกระดาษ
             ctx.fillStyle = '#059669'; 
             ctx.font = 'bold 48px Prompt';
             ctx.textAlign = 'center';
@@ -448,7 +464,6 @@
             ctx.font = '24px Prompt';
             ctx.fillText(`จำนวนทั้งหมด ${matches.length} เกม`, baseWidth / 2, 160);
 
-            // คำนวณ Auto-Layout ให้พอดี A4
             const margin = 60;
             let cols = 1;
             if (matches.length > 10 && matches.length <= 24) cols = 2;
@@ -459,12 +474,11 @@
             const cardW = (baseWidth - (margin * 2) - (gapX * (cols - 1))) / cols;
             const rows = Math.ceil(matches.length / cols);
             
-            let cardH = 120; // ลดความสูงการ์ดมาตรฐานลงนิดหน่อยเพราะเอาคนพักและเหย้าเยือนออก
+            let cardH = 120; 
             const startY = 220;
             const availableH = baseHeight - startY - margin;
             const totalHNeeded = (rows * cardH) + ((rows - 1) * gapY);
             
-            // ถ้ายาวล้นกระดาษ ให้บีบขนาดความสูงลงอัตโนมัติ
             if (totalHNeeded > availableH) {
                 const shrinkRatio = availableH / totalHNeeded;
                 cardH *= shrinkRatio;
@@ -491,7 +505,6 @@
                 const x = margin + col * (cardW + gapX);
                 const y = startY + row * (cardH + gapY);
 
-                // พื้นหลังการ์ดพร้อมเงาเบาๆ
                 ctx.shadowColor = 'rgba(0, 0, 0, 0.05)';
                 ctx.shadowBlur = 10;
                 ctx.shadowOffsetY = 4;
@@ -504,7 +517,6 @@
                 ctx.lineWidth = 2;
                 ctx.stroke();
 
-                // แถบสีเขียวด้านซ้าย
                 ctx.fillStyle = '#10b981';
                 ctx.beginPath();
                 ctx.moveTo(x + 16, y);
@@ -518,43 +530,36 @@
 
                 const scaleF = cardH < 100 ? cardH / 100 : 1;
 
-                // Game Number
                 ctx.fillStyle = '#374151';
                 ctx.font = `bold ${22 * scaleF}px Prompt`;
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'top';
                 ctx.fillText(`Game ${m.gameNum}`, x + 30, y + (20 * scaleF));
 
-                // ปรับแต่ง teamY ใหม่ให้อยู่กึ่งกลางของการ์ดมากขึ้น (ไม่มีเหย้าเยือนและพักแล้ว)
                 const teamY = y + cardH/2 + (10 * scaleF); 
 
-                // VS
                 ctx.fillStyle = '#9ca3af';
                 ctx.font = `900 ${18 * scaleF}px Prompt`;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText('VS', x + cardW/2, teamY);
 
-                // Team 1 (ซ้าย)
                 ctx.fillStyle = '#1f2937';
-                ctx.font = `bold ${26 * scaleF}px "Google Sans", Prompt`; // ขยายฟอนต์ชื่อคนขึ้นอีกนิด
+                ctx.font = `bold ${28 * scaleF}px "Google Sans", Prompt`; 
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(`${m.homeTeam[0].name} & ${m.homeTeam[1].name}`, x + cardW/2 - 25, teamY);
 
-                // Team 2 (ขวา)
                 ctx.fillStyle = '#1f2937';
-                ctx.font = `bold ${26 * scaleF}px "Google Sans", Prompt`;
+                ctx.font = `bold ${28 * scaleF}px "Google Sans", Prompt`;
                 ctx.textAlign = 'left';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(`${m.awayTeam[0].name} & ${m.awayTeam[1].name}`, x + cardW/2 + 25, teamY);
             });
             
-            // กรอบหน้ากระดาษ
             ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.strokeRect(10, 10, baseWidth - 20, baseHeight - 20);
         }
 
-        // ================= วาดตารางบันทึกคะแนน =================
         function drawCanvasTable(matches) {
             const canvas = document.getElementById('scoreCanvas');
             const ctx = canvas.getContext('2d');
@@ -636,8 +641,6 @@
             
             ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.strokeRect(10, 10, baseWidth - 20, baseHeight - 20);
         }
-
-        // ================= ฟังก์ชันปุ่ม Save =================
 
         function saveScoreTableImage() {
             const link = document.createElement('a');
