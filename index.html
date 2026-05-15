@@ -423,7 +423,7 @@
             `).join('');
         }
 
-        // ================= วาดรูปลำดับแมตช์ (A4) =================
+        // ================= วาดรูปลำดับแมตช์ (A4) คลีนๆ ไม่มีเหย้าเยือนและพัก =================
         function drawMatchListCanvas(matches) {
             const canvas = document.getElementById('matchListCanvas');
             const ctx = canvas.getContext('2d');
@@ -438,7 +438,7 @@
             ctx.fillRect(0, 0, baseWidth, baseHeight);
 
             // หัวกระดาษ
-            ctx.fillStyle = '#059669'; // text-green-600
+            ctx.fillStyle = '#059669'; 
             ctx.font = 'bold 48px Prompt';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -459,7 +459,7 @@
             const cardW = (baseWidth - (margin * 2) - (gapX * (cols - 1))) / cols;
             const rows = Math.ceil(matches.length / cols);
             
-            let cardH = 140; // ความสูงการ์ดมาตรฐาน
+            let cardH = 120; // ลดความสูงการ์ดมาตรฐานลงนิดหน่อยเพราะเอาคนพักและเหย้าเยือนออก
             const startY = 220;
             const availableH = baseHeight - startY - margin;
             const totalHNeeded = (rows * cardH) + ((rows - 1) * gapY);
@@ -471,7 +471,6 @@
                 gapY *= shrinkRatio;
             }
 
-            // ตัวช่วยวาดกล่องมน
             function drawRoundedRect(x, y, w, h, radius) {
                 ctx.beginPath();
                 ctx.moveTo(x + radius, y);
@@ -500,7 +499,6 @@
                 drawRoundedRect(x, y, cardW, cardH, 16);
                 ctx.fill();
                 
-                // ล้างเงาออกสำหรับวาดเส้น
                 ctx.shadowColor = 'transparent';
                 ctx.strokeStyle = '#e5e7eb';
                 ctx.lineWidth = 2;
@@ -518,7 +516,6 @@
                 ctx.quadraticCurveTo(x, y, x + 16, y);
                 ctx.fill();
 
-                // ปรับขนาดฟอนต์ให้เล็กลง ถ้าโดนบีบความสูง
                 const scaleF = cardH < 100 ? cardH / 100 : 1;
 
                 // Game Number
@@ -528,16 +525,9 @@
                 ctx.textBaseline = 'top';
                 ctx.fillText(`Game ${m.gameNum}`, x + 30, y + (20 * scaleF));
 
-                // พัก (ถ้ามี)
-                if(m.sittingOut.length > 0) {
-                     ctx.fillStyle = '#6b7280';
-                     ctx.font = `${18 * scaleF}px Prompt`;
-                     ctx.textAlign = 'right';
-                     ctx.fillText(`🛋️ พัก: ${m.sittingOut.map(p=>p.name).join(', ')}`, x + cardW - 20, y + (20 * scaleF));
-                }
+                // ปรับแต่ง teamY ใหม่ให้อยู่กึ่งกลางของการ์ดมากขึ้น (ไม่มีเหย้าเยือนและพักแล้ว)
+                const teamY = y + cardH/2 + (10 * scaleF); 
 
-                const teamY = y + cardH - (35 * scaleF);
-                
                 // VS
                 ctx.fillStyle = '#9ca3af';
                 ctx.font = `900 ${18 * scaleF}px Prompt`;
@@ -545,23 +535,19 @@
                 ctx.textBaseline = 'middle';
                 ctx.fillText('VS', x + cardW/2, teamY);
 
-                // Home
+                // Team 1 (ซ้าย)
                 ctx.fillStyle = '#1f2937';
-                ctx.font = `bold ${24 * scaleF}px "Google Sans", Prompt`;
+                ctx.font = `bold ${26 * scaleF}px "Google Sans", Prompt`; // ขยายฟอนต์ชื่อคนขึ้นอีกนิด
                 ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
                 ctx.fillText(`${m.homeTeam[0].name} & ${m.homeTeam[1].name}`, x + cardW/2 - 25, teamY);
-                ctx.fillStyle = '#2563eb';
-                ctx.font = `bold ${12 * scaleF}px Prompt`;
-                ctx.fillText('🏠 เหย้า', x + cardW/2 - 25, teamY - (22 * scaleF));
 
-                // Away
+                // Team 2 (ขวา)
                 ctx.fillStyle = '#1f2937';
-                ctx.font = `bold ${24 * scaleF}px "Google Sans", Prompt`;
+                ctx.font = `bold ${26 * scaleF}px "Google Sans", Prompt`;
                 ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
                 ctx.fillText(`${m.awayTeam[0].name} & ${m.awayTeam[1].name}`, x + cardW/2 + 25, teamY);
-                ctx.fillStyle = '#ea580c';
-                ctx.font = `bold ${12 * scaleF}px Prompt`;
-                ctx.fillText('🚀 เยือน', x + cardW/2 + 25, teamY - (22 * scaleF));
             });
             
             // กรอบหน้ากระดาษ
