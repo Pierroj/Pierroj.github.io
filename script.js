@@ -13,15 +13,15 @@ function toggleDarkMode() {
     applyTheme(isDark);
 }
 
-// ตรวจสอบ Theme ตอนโหลดหน้าแรก
 if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
     applyTheme(true);
 } else {
     applyTheme(false);
 }
 
-// ================= จัดการผู้เล่น =================
+// ================= ตัวแปรหลัก =================
 let players = [];
+let matches = []; // ดึง matches มาไว้เป็นตัวแปร Global เพื่อให้ระบบแชร์ลิงก์ดึงข้อมูลได้
 
 function addPlayer() {
     const nameInput = document.getElementById('playerName');
@@ -54,7 +54,6 @@ function removePlayer(index) {
     updatePlayerList(); 
 }
 
-// ================= ระบบสมองกล (Algorithm) =================
 function getTeamKey(p1, p2) { return [p1.name, p2.name].sort().join('|'); }
 
 function getCombinations(array, k) {
@@ -68,8 +67,12 @@ function getCombinations(array, k) {
     helper(0, []); return results;
 }
 
+// ================= ระบบสมองกล (Algorithm) =================
 function generateMatches() {
     if (players.length < 4) return alert('ต้องมีผู้เล่นอย่างน้อย 4 คนครับ');
+    
+    // หากจัดคู่ใหม่ ให้ล้างพารามิเตอร์ ?d ออกจาก URL เพื่อกันความสับสน
+    history.pushState(null, '', window.location.pathname);
     
     const totalGamesInput = parseInt(document.getElementById('totalGames').value);
     const initialPreventBeginner = document.getElementById('preventBeginner').checked;
@@ -97,7 +100,7 @@ function generateMatches() {
         p.consecutiveGames = 0; p.consecutiveRests = 0; p.firstRestAt = Infinity;
     });
 
-    const matches = [];
+    matches = []; // เคลียร์ตารางของเก่า
     let prevTeams = [];
     let partnerHistory = {};
     let matchHistory = {}; 
@@ -123,6 +126,7 @@ function generateMatches() {
                 validCombos = combos.filter(S => !S.some(p => p.consecutiveRests >= safeLimit));
             }
 
+            // กฎบังคับมือใหม่พักพร้อมกัน
             if (totalBeginners > 0) {
                 let strictCombos = validCombos.filter(S => {
                     const begCount = S.filter(p => p.isBeginner).length;
@@ -233,7 +237,7 @@ function generateMatches() {
     }
 }
 
-// ================= อัปเดตหน้าตา UI ฝั่งซ้าย =================
+// ================= อัปเดตหน้าตา UI =================
 function renderHTMLSummary(matches, enableScoreTable) {
     document.getElementById('statsSection').classList.remove('hidden');
     document.getElementById('matchListSection').classList.remove('hidden');
@@ -284,7 +288,7 @@ function renderHTMLSummary(matches, enableScoreTable) {
     `).join('');
 }
 
-// ================= วาดรูปลำดับการแข่งขัน (A4) =================
+// ================= วาดรูป A4 =================
 function drawMatchListCanvas(matches) {
     const canvas = document.getElementById('matchListCanvas');
     const ctx = canvas.getContext('2d');
@@ -403,7 +407,6 @@ function drawMatchListCanvas(matches) {
     ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.strokeRect(10, 10, baseWidth - 20, baseHeight - 20);
 }
 
-// ================= วาดตารางบันทึกคะแนน (A4) =================
 function drawCanvasTable(matches) {
     const canvas = document.getElementById('scoreCanvas');
     const ctx = canvas.getContext('2d');
@@ -486,7 +489,8 @@ function drawCanvasTable(matches) {
     ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.strokeRect(10, 10, baseWidth - 20, baseHeight - 20);
 }
 
-// ================= ฟังก์ชันปุ่ม Save =================
+// ================= ฟังก์ชันปุ่ม Save & Share =================
+
 function saveScoreTableImage() {
     const link = document.createElement('a');
     link.download = 'pickleball-scoretable.png';
@@ -518,3 +522,96 @@ function saveMatchListPDF() {
     pdf.addImage(imgData, 'PNG', 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight());
     pdf.save('pickleball-matchschedule.pdf');
 }
+
+// ระบบสร้างและคัดลอกลิงก์แชร์
+function copyShareLink() {
+    if (matches.length === 0) return alert('กรุณากดเริ่มจัดตารางแข่งขันก่อนแชร์ลิงก์ครับ 🚀');
+    
+    // บีบอัดข้อมูล: เอาแค่ชื่อผู้เล่น, สถานะมือใหม่ และตัวเลข Index ของตารางแข่งไป
+    const pNames = players.map(p => p.name);
+    const pBegins = players.map(p => p.isBeginner ? 1 : 0);
+    
+    const mShrink = matches.map(m => [
+        m.gameNum,
+        m.homeTeam.map(p => pNames.indexOf(p.name)),
+        m.awayTeam.map(p => pNames.indexOf(p.name)),
+        m.sittingOut.map(p => pNames.indexOf(p.name))
+    ]);
+
+    const shareData = { n: pNames, b: pBegins, m: mShrink };
+    const jsonStr = JSON.stringify(shareData);
+    // เข้ารหัสข้อมูลให้ปลอดภัยสำหรับการต่อท้าย URL
+    const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
+    const shareUrl = window.location.origin + window.location.pathname + '?d=' + encoded;
+
+    navigator.clipboard.writeText(shareUrl).then(() => {
+        alert('คัดลอกลิงก์สำเร็จ! 🎉\nนำไปส่งให้เพื่อนในแชทดูผลแบบเดียวกันได้เลยครับ');
+    }).catch(err => {
+        // Fallback กรณีที่เบราว์เซอร์ไม่อนุญาตให้ก็อปปี้อัตโนมัติ
+        prompt('เบราว์เซอร์ไม่รองรับการคัดลอกอัตโนมัติ กรุณาก๊อปปี้ลิงก์ในช่องด้านล่างนี้ครับ:', shareUrl);
+    });
+}
+
+// ================= ระบบอ่านข้อมูลตอนเปิดเว็บ (สำหรับเพื่อนที่กดลิงก์มา) =================
+window.addEventListener('DOMContentLoaded', () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const d = urlParams.get('d');
+    
+    if (d) {
+        try {
+            // ถอดรหัสข้อมูลกลับมาเป็น Object
+            const decoded = JSON.parse(decodeURIComponent(escape(atob(d))));
+            
+            // นำข้อมูลผู้เล่นกลับมา
+            players = decoded.n.map((name, idx) => ({
+                name: name,
+                isBeginner: decoded.b[idx] === 1,
+                gamesPlayed: 0, homeGames: 0, awayGames: 0,
+                consecutiveGames: 0, consecutiveRests: 0, firstRestAt: Infinity
+            }));
+
+            // นำข้อมูลตารางแข่งกลับมาและอัปเดตสถิติผู้เล่นตามตาราง
+            matches = decoded.m.map(ms => {
+                const homeTeam = ms[1].map(idx => players[idx]);
+                const awayTeam = ms[2].map(idx => players[idx]);
+                const sittingOut = ms[3].map(idx => players[idx]);
+                
+                homeTeam.forEach(p => { p.gamesPlayed++; p.homeGames++; });
+                awayTeam.forEach(p => { p.gamesPlayed++; p.awayGames++; });
+                sittingOut.forEach(p => { if (p.firstRestAt === Infinity) p.firstRestAt = ms[0]; });
+
+                return { gameNum: ms[0], homeTeam, awayTeam, sittingOut };
+            });
+
+            // อัปเดตหน้าตา UI โดยอัตโนมัติ
+            updatePlayerList();
+            
+            const enableScoreTable = matches.length <= 20 && players.length <= 10;
+            
+            const mainLayout = document.getElementById('mainLayout');
+            mainLayout.classList.remove('items-center');
+            mainLayout.classList.add('lg:flex-row', 'items-start');
+            
+            const leftColumn = document.getElementById('leftColumn');
+            leftColumn.classList.remove('max-w-2xl');
+            leftColumn.classList.add('lg:w-[400px]', 'xl:w-[450px]', 'lg:sticky', 'lg:top-6', 'lg:max-h-[calc(100vh-3rem)]', 'lg:overflow-y-auto', 'custom-scrollbar', 'pr-2', 'pb-4');
+
+            renderHTMLSummary(matches, enableScoreTable);
+            
+            document.fonts.ready.then(() => {
+                drawMatchListCanvas(matches);
+                if(enableScoreTable) drawCanvasTable(matches);
+            });
+
+            if(window.innerWidth < 1024) {
+                setTimeout(() => {
+                    document.getElementById('rightColumn').scrollIntoView({ behavior: 'smooth' });
+                }, 500);
+            }
+
+        } catch (e) {
+            console.error('Data decoding error:', e);
+            alert('ลิงก์แชร์ไม่ถูกต้อง ข้อมูลอาจสูญหายหรือถูกเปลี่ยนแปลงครับ ⚠️');
+        }
+    }
+});
