@@ -21,7 +21,7 @@ if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.match
 
 // ================= ตัวแปรหลัก =================
 let players = [];
-let matches = []; // ดึง matches มาไว้เป็นตัวแปร Global เพื่อให้ระบบแชร์ลิงก์ดึงข้อมูลได้
+let matches = []; 
 
 function addPlayer() {
     const nameInput = document.getElementById('playerName');
@@ -71,8 +71,12 @@ function getCombinations(array, k) {
 function generateMatches() {
     if (players.length < 4) return alert('ต้องมีผู้เล่นอย่างน้อย 4 คนครับ');
     
-    // หากจัดคู่ใหม่ ให้ล้างพารามิเตอร์ ?d ออกจาก URL เพื่อกันความสับสน
+    // หากจัดคู่ใหม่ ให้ล้างพารามิเตอร์ ?m ออกจาก URL เพื่อกันความสับสน
     history.pushState(null, '', window.location.pathname);
+    
+    // ถ้าเคยกดเข้าผ่านลิงก์ ให้ซ่อนป้ายประกาศ View Mode กลับไป
+    document.getElementById('viewModeSection').classList.add('hidden');
+    document.getElementById('setupSection').classList.remove('hidden');
     
     const totalGamesInput = parseInt(document.getElementById('totalGames').value);
     const initialPreventBeginner = document.getElementById('preventBeginner').checked;
@@ -100,7 +104,7 @@ function generateMatches() {
         p.consecutiveGames = 0; p.consecutiveRests = 0; p.firstRestAt = Infinity;
     });
 
-    matches = []; // เคลียร์ตารางของเก่า
+    matches = []; 
     let prevTeams = [];
     let partnerHistory = {};
     let matchHistory = {}; 
@@ -126,7 +130,6 @@ function generateMatches() {
                 validCombos = combos.filter(S => !S.some(p => p.consecutiveRests >= safeLimit));
             }
 
-            // กฎบังคับมือใหม่พักพร้อมกัน
             if (totalBeginners > 0) {
                 let strictCombos = validCombos.filter(S => {
                     const begCount = S.filter(p => p.isBeginner).length;
@@ -140,13 +143,11 @@ function generateMatches() {
                 const gA = a.reduce((s, p) => s + p.gamesPlayed, 0);
                 const gB = b.reduce((s, p) => s + p.gamesPlayed, 0);
                 if (gA !== gB) return gB - gA;
-
                 if (i > 1) {
                     const begA = a.filter(p => p.isBeginner).length;
                     const begB = b.filter(p => p.isBeginner).length;
                     if (begA !== begB) return begB - begA;
                 }
-
                 return 0;
             });
 
@@ -490,7 +491,6 @@ function drawCanvasTable(matches) {
 }
 
 // ================= ฟังก์ชันปุ่ม Save & Share =================
-
 function saveScoreTableImage() {
     const link = document.createElement('a');
     link.download = 'pickleball-scoretable.png';
@@ -523,14 +523,14 @@ function saveMatchListPDF() {
     pdf.save('pickleball-matchschedule.pdf');
 }
 
-// ระบบสร้างและคัดลอกลิงก์แชร์
+// ระบบสร้างและคัดลอกลิงก์แชร์ ด้วยพารามิเตอร์ ?m=
 function copyShareLink() {
     if (matches.length === 0) return alert('กรุณากดเริ่มจัดตารางแข่งขันก่อนแชร์ลิงก์ครับ 🚀');
     
-    // บีบอัดข้อมูล: เอาแค่ชื่อผู้เล่น, สถานะมือใหม่ และตัวเลข Index ของตารางแข่งไป
     const pNames = players.map(p => p.name);
     const pBegins = players.map(p => p.isBeginner ? 1 : 0);
-    
+    const enableScoreTablePref = document.getElementById('enableScoreTable').checked ? 1 : 0;
+
     const mShrink = matches.map(m => [
         m.gameNum,
         m.homeTeam.map(p => pNames.indexOf(p.name)),
@@ -538,31 +538,34 @@ function copyShareLink() {
         m.sittingOut.map(p => pNames.indexOf(p.name))
     ]);
 
-    const shareData = { n: pNames, b: pBegins, m: mShrink };
+    const shareData = { n: pNames, b: pBegins, m: mShrink, s: enableScoreTablePref };
     const jsonStr = JSON.stringify(shareData);
-    // เข้ารหัสข้อมูลให้ปลอดภัยสำหรับการต่อท้าย URL
-    const encoded = btoa(unescape(encodeURIComponent(jsonStr)));
-    const shareUrl = window.location.origin + window.location.pathname + '?d=' + encoded;
+    
+    const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
+    const encodedUrlParam = encodeURIComponent(base64Str);
+    
+    // สร้างลิงก์ URL ด้วย m=
+    const shareUrl = window.location.origin + window.location.pathname + '?m=' + encodedUrlParam;
 
     navigator.clipboard.writeText(shareUrl).then(() => {
         alert('คัดลอกลิงก์สำเร็จ! 🎉\nนำไปส่งให้เพื่อนในแชทดูผลแบบเดียวกันได้เลยครับ');
     }).catch(err => {
-        // Fallback กรณีที่เบราว์เซอร์ไม่อนุญาตให้ก็อปปี้อัตโนมัติ
         prompt('เบราว์เซอร์ไม่รองรับการคัดลอกอัตโนมัติ กรุณาก๊อปปี้ลิงก์ในช่องด้านล่างนี้ครับ:', shareUrl);
     });
 }
 
-// ================= ระบบอ่านข้อมูลตอนเปิดเว็บ (สำหรับเพื่อนที่กดลิงก์มา) =================
+// ================= ระบบอ่านข้อมูลตอนเปิดเว็บ (เมื่อรับลิงก์มา) =================
 window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const d = urlParams.get('d');
     
-    if (d) {
+    // อ่านค่าพารามิเตอร์จาก m=
+    let mParam = urlParams.get('m');
+    
+    if (mParam) {
         try {
-            // ถอดรหัสข้อมูลกลับมาเป็น Object
-            const decoded = JSON.parse(decodeURIComponent(escape(atob(d))));
+            mParam = mParam.replace(/ /g, '+'); 
+            const decoded = JSON.parse(decodeURIComponent(escape(atob(mParam))));
             
-            // นำข้อมูลผู้เล่นกลับมา
             players = decoded.n.map((name, idx) => ({
                 name: name,
                 isBeginner: decoded.b[idx] === 1,
@@ -570,7 +573,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 consecutiveGames: 0, consecutiveRests: 0, firstRestAt: Infinity
             }));
 
-            // นำข้อมูลตารางแข่งกลับมาและอัปเดตสถิติผู้เล่นตามตาราง
             matches = decoded.m.map(ms => {
                 const homeTeam = ms[1].map(idx => players[idx]);
                 const awayTeam = ms[2].map(idx => players[idx]);
@@ -583,10 +585,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 return { gameNum: ms[0], homeTeam, awayTeam, sittingOut };
             });
 
-            // อัปเดตหน้าตา UI โดยอัตโนมัติ
             updatePlayerList();
             
-            const enableScoreTable = matches.length <= 20 && players.length <= 10;
+            let enableScoreTable = (decoded.s !== undefined) ? (decoded.s === 1) : true;
+            
+            if (matches.length > 20 || players.length > 10) {
+                enableScoreTable = false;
+            }
             
             const mainLayout = document.getElementById('mainLayout');
             mainLayout.classList.remove('items-center');
@@ -597,6 +602,9 @@ window.addEventListener('DOMContentLoaded', () => {
             leftColumn.classList.add('lg:w-[400px]', 'xl:w-[450px]', 'lg:sticky', 'lg:top-6', 'lg:max-h-[calc(100vh-3rem)]', 'lg:overflow-y-auto', 'custom-scrollbar', 'pr-2', 'pb-4');
 
             renderHTMLSummary(matches, enableScoreTable);
+            
+            document.getElementById('setupSection').classList.add('hidden');
+            document.getElementById('viewModeSection').classList.remove('hidden');
             
             document.fonts.ready.then(() => {
                 drawMatchListCanvas(matches);
@@ -612,6 +620,7 @@ window.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.error('Data decoding error:', e);
             alert('ลิงก์แชร์ไม่ถูกต้อง ข้อมูลอาจสูญหายหรือถูกเปลี่ยนแปลงครับ ⚠️');
+            window.location.href = window.location.pathname;
         }
     }
 });
