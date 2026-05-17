@@ -522,7 +522,7 @@ function saveMatchListPDF() {
     pdf.save('pickleball-matchschedule.pdf');
 }
 
-// ระบบสร้างและคัดลอกลิงก์แชร์ด้วย URL-Safe Base64 (แก้ปัญหาแอป LINE ตัดลิงก์)
+// ระบบเข้ารหัสขั้นสูงสุดสำหรับกันแอปแชทตัดลิงก์
 function copyShareLink() {
     if (matches.length === 0) return alert('กรุณากดเริ่มจัดตารางแข่งขันก่อนแชร์ลิงก์ครับ 🚀');
     
@@ -537,19 +537,24 @@ function copyShareLink() {
         m.sittingOut.map(p => pNames.indexOf(p.name))
     ]);
 
-    const shareData = { n: pNames, b: pBegins, m: mShrink, s: enableScoreTablePref };
-    const jsonStr = JSON.stringify(shareData);
+    const shareData = [pNames, pBegins, mShrink, enableScoreTablePref];
     
-    // แปลงให้เป็น Base64 แบบธรรมดาก่อน
-    let base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
+    // แปลงทุกตัวอักษรให้อยู่ในรูปเปอร์เซ็นต์ (%XX) เท่านั้น
+    let encodedUrlParam = encodeURIComponent(JSON.stringify(shareData))
+        .replace(/-/g, '%2D')
+        .replace(/_/g, '%5F')
+        .replace(/\./g, '%2E')
+        .replace(/!/g, '%21')
+        .replace(/~/g, '%7E')
+        .replace(/\*/g, '%2A')
+        .replace(/'/g, '%27')
+        .replace(/\(/g, '%28')
+        .replace(/\)/g, '%29');
     
-    // เปลี่ยน Base64 ธรรมดา ให้เป็น URL-Safe Base64 (ไม่มี + / = มากวนใจแอปแชท)
-    let safeBase64 = base64Str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    
-    const shareUrl = window.location.origin + window.location.pathname + '?m=' + safeBase64;
+    const shareUrl = window.location.origin + window.location.pathname + '?m=' + encodedUrlParam;
 
     navigator.clipboard.writeText(shareUrl).then(() => {
-        alert('🎉 คัดลอกลิงก์สำเร็จ!');
+        alert('คัดลอกลิงก์สำเร็จ! 🎉');
     }).catch(err => {
         prompt('เบราว์เซอร์ไม่รองรับการคัดลอกอัตโนมัติ กรุณาก๊อปปี้ลิงก์ในช่องด้านล่างนี้ครับ:', shareUrl);
     });
@@ -562,24 +567,22 @@ window.addEventListener('DOMContentLoaded', () => {
     
     if (mParam) {
         try {
-            // แปลง URL-Safe Base64 กลับมาเป็น Base64 ปกติ
-            let base64 = mParam.replace(/-/g, '+').replace(/_/g, '/');
-            // เติมเครื่องหมาย = กลับเข้าไปให้ครบ Format ถ้าจำเป็น
-            while (base64.length % 4) {
-                base64 += '=';
-            }
+            // ระบบ urlParams.get จะแปลง %XX กลับมาเป็นข้อความปกติให้อัตโนมัติแล้ว
+            const decoded = JSON.parse(mParam);
             
-            // ถอดรหัสกลับมาเป็น Object
-            const decoded = JSON.parse(decodeURIComponent(escape(atob(base64))));
-            
-            players = decoded.n.map((name, idx) => ({
+            const pNames = decoded[0];
+            const pBegins = decoded[1];
+            const mShrink = decoded[2];
+            const sPref = decoded[3];
+
+            players = pNames.map((name, idx) => ({
                 name: name,
-                isBeginner: decoded.b[idx] === 1,
+                isBeginner: pBegins[idx] === 1,
                 gamesPlayed: 0, homeGames: 0, awayGames: 0,
                 consecutiveGames: 0, consecutiveRests: 0, firstRestAt: Infinity
             }));
 
-            matches = decoded.m.map(ms => {
+            matches = mShrink.map(ms => {
                 const homeTeam = ms[1].map(idx => players[idx]);
                 const awayTeam = ms[2].map(idx => players[idx]);
                 const sittingOut = ms[3].map(idx => players[idx]);
@@ -593,7 +596,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
             updatePlayerList();
             
-            let enableScoreTable = (decoded.s !== undefined) ? (decoded.s === 1) : true;
+            let enableScoreTable = (sPref === 1);
             
             if (matches.length > 20 || players.length > 10) {
                 enableScoreTable = false;
@@ -609,7 +612,6 @@ window.addEventListener('DOMContentLoaded', () => {
 
             renderHTMLSummary(matches, enableScoreTable);
             
-            // เปิดการทำงานโหมด View
             document.getElementById('setupSection').classList.add('hidden');
             document.getElementById('viewModeSection').classList.remove('hidden');
             
