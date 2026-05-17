@@ -71,10 +71,8 @@ function getCombinations(array, k) {
 function generateMatches() {
     if (players.length < 4) return alert('ต้องมีผู้เล่นอย่างน้อย 4 คนครับ');
     
-    // หากจัดคู่ใหม่ ให้ล้างพารามิเตอร์ ?m ออกจาก URL เพื่อกันความสับสน
     history.pushState(null, '', window.location.pathname);
     
-    // ถ้าเคยกดเข้าผ่านลิงก์ ให้ซ่อนป้ายประกาศ View Mode กลับไป
     document.getElementById('viewModeSection').classList.add('hidden');
     document.getElementById('setupSection').classList.remove('hidden');
     
@@ -491,6 +489,7 @@ function drawCanvasTable(matches) {
 }
 
 // ================= ฟังก์ชันปุ่ม Save & Share =================
+
 function saveScoreTableImage() {
     const link = document.createElement('a');
     link.download = 'pickleball-scoretable.png';
@@ -523,7 +522,7 @@ function saveMatchListPDF() {
     pdf.save('pickleball-matchschedule.pdf');
 }
 
-// ระบบสร้างและคัดลอกลิงก์แชร์ ด้วยพารามิเตอร์ ?m=
+// ระบบสร้างและคัดลอกลิงก์แชร์ด้วย URL-Safe Base64 (แก้ปัญหาแอป LINE ตัดลิงก์)
 function copyShareLink() {
     if (matches.length === 0) return alert('กรุณากดเริ่มจัดตารางแข่งขันก่อนแชร์ลิงก์ครับ 🚀');
     
@@ -541,14 +540,16 @@ function copyShareLink() {
     const shareData = { n: pNames, b: pBegins, m: mShrink, s: enableScoreTablePref };
     const jsonStr = JSON.stringify(shareData);
     
-    const base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
-    const encodedUrlParam = encodeURIComponent(base64Str);
+    // แปลงให้เป็น Base64 แบบธรรมดาก่อน
+    let base64Str = btoa(unescape(encodeURIComponent(jsonStr)));
     
-    // สร้างลิงก์ URL ด้วย m=
-    const shareUrl = window.location.origin + window.location.pathname + '?m=' + encodedUrlParam;
+    // เปลี่ยน Base64 ธรรมดา ให้เป็น URL-Safe Base64 (ไม่มี + / = มากวนใจแอปแชท)
+    let safeBase64 = base64Str.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    
+    const shareUrl = window.location.origin + window.location.pathname + '?m=' + safeBase64;
 
     navigator.clipboard.writeText(shareUrl).then(() => {
-        alert('คัดลอกลิงก์สำเร็จ! 🎉\nนำไปส่งให้เพื่อนในแชทดูผลแบบเดียวกันได้เลยครับ');
+        alert('🎉 คัดลอกลิงก์สำเร็จ!');
     }).catch(err => {
         prompt('เบราว์เซอร์ไม่รองรับการคัดลอกอัตโนมัติ กรุณาก๊อปปี้ลิงก์ในช่องด้านล่างนี้ครับ:', shareUrl);
     });
@@ -557,14 +558,19 @@ function copyShareLink() {
 // ================= ระบบอ่านข้อมูลตอนเปิดเว็บ (เมื่อรับลิงก์มา) =================
 window.addEventListener('DOMContentLoaded', () => {
     const urlParams = new URLSearchParams(window.location.search);
-    
-    // อ่านค่าพารามิเตอร์จาก m=
     let mParam = urlParams.get('m');
     
     if (mParam) {
         try {
-            mParam = mParam.replace(/ /g, '+'); 
-            const decoded = JSON.parse(decodeURIComponent(escape(atob(mParam))));
+            // แปลง URL-Safe Base64 กลับมาเป็น Base64 ปกติ
+            let base64 = mParam.replace(/-/g, '+').replace(/_/g, '/');
+            // เติมเครื่องหมาย = กลับเข้าไปให้ครบ Format ถ้าจำเป็น
+            while (base64.length % 4) {
+                base64 += '=';
+            }
+            
+            // ถอดรหัสกลับมาเป็น Object
+            const decoded = JSON.parse(decodeURIComponent(escape(atob(base64))));
             
             players = decoded.n.map((name, idx) => ({
                 name: name,
@@ -603,6 +609,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
             renderHTMLSummary(matches, enableScoreTable);
             
+            // เปิดการทำงานโหมด View
             document.getElementById('setupSection').classList.add('hidden');
             document.getElementById('viewModeSection').classList.remove('hidden');
             
