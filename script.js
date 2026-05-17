@@ -522,7 +522,7 @@ function saveMatchListPDF() {
     pdf.save('pickleball-matchschedule.pdf');
 }
 
-// ระบบเข้ารหัสขั้นสูงสุดสำหรับกันแอปแชทตัดลิงก์
+// ระบบสร้างลิงก์แชร์ด้วย lz-string
 function copyShareLink() {
     if (matches.length === 0) return alert('กรุณากดเริ่มจัดตารางแข่งขันก่อนแชร์ลิงก์ครับ 🚀');
     
@@ -538,20 +538,12 @@ function copyShareLink() {
     ]);
 
     const shareData = [pNames, pBegins, mShrink, enableScoreTablePref];
+    const jsonStr = JSON.stringify(shareData);
     
-    // แปลงทุกตัวอักษรให้อยู่ในรูปเปอร์เซ็นต์ (%XX) เท่านั้น
-    let encodedUrlParam = encodeURIComponent(JSON.stringify(shareData))
-        .replace(/-/g, '%2D')
-        .replace(/_/g, '%5F')
-        .replace(/\./g, '%2E')
-        .replace(/!/g, '%21')
-        .replace(/~/g, '%7E')
-        .replace(/\*/g, '%2A')
-        .replace(/'/g, '%27')
-        .replace(/\(/g, '%28')
-        .replace(/\)/g, '%29');
+    // ใช้ lz-string บีบอัดข้อมูลให้สั้นและแปลงเป็นตัวอักษรที่ปลอดภัยต่อ URL ทุกแอป
+    const compressed = LZString.compressToEncodedURIComponent(jsonStr);
     
-    const shareUrl = window.location.origin + window.location.pathname + '?m=' + encodedUrlParam;
+    const shareUrl = window.location.origin + window.location.pathname + '?m=' + compressed;
 
     navigator.clipboard.writeText(shareUrl).then(() => {
         alert('คัดลอกลิงก์สำเร็จ! 🎉');
@@ -567,8 +559,12 @@ window.addEventListener('DOMContentLoaded', () => {
     
     if (mParam) {
         try {
-            // ระบบ urlParams.get จะแปลง %XX กลับมาเป็นข้อความปกติให้อัตโนมัติแล้ว
-            const decoded = JSON.parse(mParam);
+            // ใช้ lz-string ถอดรหัสข้อมูลที่บีบอัดกลับคืนมา
+            const decompressed = LZString.decompressFromEncodedURIComponent(mParam);
+            
+            if (!decompressed) throw new Error("ข้อมูลเสียหาย ถอดรหัสไม่ได้");
+
+            const decoded = JSON.parse(decompressed);
             
             const pNames = decoded[0];
             const pBegins = decoded[1];
@@ -612,6 +608,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
             renderHTMLSummary(matches, enableScoreTable);
             
+            // เปิดการทำงานโหมด View
             document.getElementById('setupSection').classList.add('hidden');
             document.getElementById('viewModeSection').classList.remove('hidden');
             
@@ -628,7 +625,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
         } catch (e) {
             console.error('Data decoding error:', e);
-            alert('ลิงก์แชร์ไม่ถูกต้อง ข้อมูลอาจสูญหายหรือถูกเปลี่ยนแปลงครับ ⚠️');
+            alert('ลิงก์แชร์ไม่ถูกต้อง หรือข้อมูลอาจสูญหายครับ ⚠️');
             window.location.href = window.location.pathname;
         }
     }
