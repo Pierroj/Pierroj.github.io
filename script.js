@@ -23,7 +23,8 @@ if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.match
 let players = [];
 let matches = []; 
 
-let currentRole = 'NONE'; 
+// ระบบจัดการสถานะ (3 หน้าที่)
+let currentRole = 'NONE'; // INITIAL (จัดคิวเฉยๆ), ADMIN (กรรมการ), VIEWER (คนดู)
 let currentCompressedData = '';
 let currentRoomId = '';
 
@@ -231,14 +232,8 @@ function generateMatches() {
         matches.push({ gameNum: i, homeTeam: home, awayTeam: away, sittingOut, homeScore: 0, awayScore: 0, isFinished: false });
     }
 
-    const pNames = players.map(p => p.name);
-    const pBegins = players.map(p => p.isBeginner ? 1 : 0);
-    const mShrink = matches.map(m => [
-        m.gameNum, m.homeTeam.map(p => pNames.indexOf(p.name)),
-        m.awayTeam.map(p => pNames.indexOf(p.name)), m.sittingOut.map(p => pNames.indexOf(p.name))
-    ]);
-    const shareData = [pNames, pBegins, mShrink, enableScoreTable ? 1 : 0];
-    currentCompressedData = LZString.compressToEncodedURIComponent(JSON.stringify(shareData));
+    // สร้างข้อมูลบีบอัดครั้งแรก
+    updateCompressedData(enableScoreTable);
 
     renderHTMLSummary(matches, enableScoreTable);
     
@@ -252,10 +247,33 @@ function generateMatches() {
     }
 }
 
+// ฟังก์ชันอัปเดตข้อมูลบีบอัดสำหรับฝังใน URL (ระบบ Snapshot ฝังคะแนน)
+function updateCompressedData(enableScoreTable) {
+    const pNames = players.map(p => p.name);
+    const pBegins = players.map(p => p.isBeginner ? 1 : 0);
+    const mShrink = matches.map(m => [
+        m.gameNum, 
+        m.homeTeam.map(p => pNames.indexOf(p.name)),
+        m.awayTeam.map(p => pNames.indexOf(p.name)), 
+        m.sittingOut.map(p => pNames.indexOf(p.name)),
+        m.homeScore || 0,     // จำคะแนนทีมเหย้า
+        m.awayScore || 0,     // จำคะแนนทีมเยือน
+        m.isFinished ? 1 : 0  // จำสถานะการจบแมตช์
+    ]);
+    const shareData = [pNames, pBegins, mShrink, enableScoreTable ? 1 : 0];
+    currentCompressedData = LZString.compressToEncodedURIComponent(JSON.stringify(shareData));
+}
+
 // ================= ระบบควบคุมคะแนน & เปิด-ปิดตารางสด =================
 function saveScoresToLocal() {
     const scores = matches.map(m => ({ h: m.homeScore, a: m.awayScore, f: m.isFinished }));
     localStorage.setItem('pkb_score_' + currentRoomId, JSON.stringify(scores));
+    
+    // สำคัญ: อัปเดตข้อมูลลิงก์เผื่อกรรมการกดก็อปปี้แชร์ลง LINE (ระบบ Snapshot)
+    let isScoreTableEnabled = false;
+    const checkbox = document.getElementById('enableScoreTable');
+    if (checkbox) isScoreTableEnabled = checkbox.checked;
+    updateCompressedData(isScoreTableEnabled);
 }
 
 function setScore(index, team, val) {
@@ -271,7 +289,7 @@ function setScore(index, team, val) {
     
     saveScoresToLocal();
     renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
-    drawMatchListCanvas(matches); // อัปเดตรูปตารางแข่งทันที
+    drawMatchListCanvas(matches);
     if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
     broadcastSync(); 
 }
@@ -286,7 +304,7 @@ function updateScore(index, team, delta) {
     
     saveScoresToLocal();
     renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
-    drawMatchListCanvas(matches); // อัปเดตรูปตารางแข่งทันที
+    drawMatchListCanvas(matches);
     if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
     broadcastSync(); 
 }
@@ -297,7 +315,7 @@ function toggleFinish(index) {
     
     saveScoresToLocal();
     renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
-    drawMatchListCanvas(matches); // อัปเดตรูปตารางแข่งทันที
+    drawMatchListCanvas(matches);
     if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
     broadcastSync();
 }
@@ -311,24 +329,16 @@ function toggleScoreTable() {
     const checkbox = document.getElementById('enableScoreTable');
     checkbox.checked = !checkbox.checked;
     
-    const pNames = players.map(p => p.name);
-    const pBegins = players.map(p => p.isBeginner ? 1 : 0);
-    const mShrink = matches.map(m => [
-        m.gameNum, m.homeTeam.map(p => pNames.indexOf(p.name)),
-        m.awayTeam.map(p => pNames.indexOf(p.name)), m.sittingOut.map(p => pNames.indexOf(p.name))
-    ]);
-    const shareData = [pNames, pBegins, mShrink, checkbox.checked ? 1 : 0];
-    currentCompressedData = LZString.compressToEncodedURIComponent(JSON.stringify(shareData));
-    
+    updateCompressedData(checkbox.checked); // อัปเดตลิงก์ให้ฝังสถานะตารางไปด้วย
     renderHTMLSummary(matches, checkbox.checked);
-    drawMatchListCanvas(matches); // อัปเดตรูปตารางแข่งด้วย
+    drawMatchListCanvas(matches);
     
     if(checkbox.checked) {
         setTimeout(() => { drawCanvasTable(matches); }, 50);
     }
 }
 
-// ================= อัปเดตหน้าตา UI =================
+// ================= อัปเดตหน้าตา UI (ปุ่ม Flex Responsive) =================
 function renderHTMLSummary(matches, enableScoreTable) {
     document.getElementById('statsSection').classList.remove('hidden');
     document.getElementById('matchListSection').classList.remove('hidden');
@@ -355,8 +365,8 @@ function renderHTMLSummary(matches, enableScoreTable) {
 
     const toggleBtnText = enableScoreTable ? '👁️‍🗨️ ซ่อนตาราง' : '📊 เปิดตาราง';
     const toggleBtn = `<button onclick="toggleScoreTable()" class="${btnClass} bg-teal-600 hover:bg-teal-700 text-white">${toggleBtnText}</button>`;
-    const imgBtn = `<button onclick="saveMatchListImage()" class="${btnClass} bg-indigo-500 hover:bg-indigo-600 text-white">🖼️ บันทึกรูป</button>`;
-    const pdfBtn = `<button onclick="saveMatchListPDF()" class="${btnClass} bg-red-500 hover:bg-red-600 text-white">📄 บันทึก PDF</button>`;
+    const imgBtn = `<button onclick="saveMatchListImage()" class="${btnClass} bg-indigo-500 hover:bg-indigo-600 text-white">🖼️ เซฟรูป</button>`;
+    const pdfBtn = `<button onclick="saveMatchListPDF()" class="${btnClass} bg-red-500 hover:bg-red-600 text-white">📄 PDF</button>`;
 
     if (currentRole === 'INITIAL') {
         mlBtns.innerHTML = `
@@ -368,7 +378,7 @@ function renderHTMLSummary(matches, enableScoreTable) {
         `;
     } else if (currentRole === 'ADMIN') {
         mlBtns.innerHTML = `
-            <button onclick="copyShareLink('admin')" class="${btnClass} bg-yellow-600 hover:bg-yellow-700 text-white">👑 ลิงก์กรรมการ</button>
+            <button onclick="copyShareLink('admin')" class="${btnClass} bg-yellow-600 hover:bg-yellow-700 text-white">👑 ลิงก์ตัวเอง</button>
             <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์ผู้ชม</button>
             ${toggleBtn}
             ${imgBtn}
@@ -384,8 +394,8 @@ function renderHTMLSummary(matches, enableScoreTable) {
 
     cvBtns.innerHTML = `
         <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์ผู้ชม</button>
-        <button onclick="saveScoreTableImage()" class="${btnClass} bg-blue-600 hover:bg-blue-700 text-white">🖼️ บันทึกรูป</button>
-        <button onclick="saveScoreTablePDF()" class="${btnClass} bg-red-500 hover:bg-red-600 text-white">📄 บันทึก PDF</button>
+        <button onclick="saveScoreTableImage()" class="${btnClass} bg-blue-600 hover:bg-blue-700 text-white">🖼️ เซฟรูป</button>
+        <button onclick="saveScoreTablePDF()" class="${btnClass} bg-red-500 hover:bg-red-600 text-white">📄 PDF</button>
         <button onclick="window.print()" class="${btnClass} bg-gray-700 hover:bg-gray-800 text-white">🖨️ พิมพ์</button>
     `;
 
@@ -464,14 +474,14 @@ function renderHTMLSummary(matches, enableScoreTable) {
                 <span class="truncate">${p.name}</span> ${kingBadge}
             </div>
             <div class="text-xs text-gray-600 dark:text-gray-300 flex justify-between font-medium">
-                <span>ชนะ: <b class="text-green-600 dark:text-green-400 text-sm">${p.wins}</b> เกม</span>
-                <span>เล่น: ${p.gamesPlayed} เกม</span>
+                <span>ชนะ: <b class="text-green-600 dark:text-green-400 text-sm">${p.wins}</b></span>
+                <span>ลง: ${p.gamesPlayed}</span>
             </div>
         </li>
     `}).join('');
 }
 
-// ================= วาดรูป A4 ลำดับการแข่งขัน (อัปเดตแบบโชว์คะแนน) =================
+// ================= วาดรูป A4 (ตารางแข่งขัน) =================
 function drawMatchListCanvas(matches) {
     const canvas = document.getElementById('matchListCanvas');
     const ctx = canvas.getContext('2d');
@@ -493,12 +503,11 @@ function drawMatchListCanvas(matches) {
         const col = i % cols; const row = Math.floor(i / cols); const x = margin + col * (cardW + gapX); const y = startY + row * (cardH + gapY); 
         
         ctx.shadowColor = 'rgba(0, 0, 0, 0.05)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4; 
-        ctx.fillStyle = m.isFinished ? '#f3f4f6' : '#f9fafb'; // สีเทาอ่อนถ้าจบแล้ว
+        ctx.fillStyle = m.isFinished ? '#f3f4f6' : '#f9fafb'; 
         drawRoundedRect(x, y, cardW, cardH, 16); ctx.fill(); 
         
         ctx.shadowColor = 'transparent'; ctx.strokeStyle = m.isFinished ? '#d1d5db' : '#e5e7eb'; ctx.lineWidth = 2; ctx.stroke(); 
         
-        // แถบสีด้านซ้ายเปลี่ยนเป็นเทาถ้าจบแล้ว
         ctx.fillStyle = m.isFinished ? '#9ca3af' : '#10b981'; 
         ctx.beginPath(); ctx.moveTo(x + 16, y); ctx.lineTo(x + 10, y); ctx.lineTo(x + 10, y + cardH); ctx.lineTo(x + 16, y + cardH); ctx.quadraticCurveTo(x, y + cardH, x, y + cardH - 16); ctx.lineTo(x, y + 16); ctx.quadraticCurveTo(x, y, x + 16, y); ctx.fill(); 
         
@@ -510,7 +519,6 @@ function drawMatchListCanvas(matches) {
         
         const teamY = y + cardH/2 + (10 * scaleF); 
         
-        // ตรงกลาง: สลับแสดงเป็นคะแนนถ้ามีการกดคะแนน หรือแสดง VS ถ้ายังเป็น 0
         let hasScore = m.isFinished || m.homeScore > 0 || m.awayScore > 0;
         let centerText = hasScore ? `${m.homeScore} - ${m.awayScore}` : 'VS';
         let centerColor = m.isFinished ? '#dc2626' : (hasScore ? '#ea580c' : '#9ca3af');
@@ -520,12 +528,10 @@ function drawMatchListCanvas(matches) {
         ctx.fillStyle = centerColor; ctx.font = centerFont; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
         ctx.fillText(centerText, x + cardW/2, teamY); 
         
-        // ทีมเหย้า
         ctx.fillStyle = m.isFinished ? '#4b5563' : '#1f2937'; 
         ctx.font = `bold ${28 * scaleF}px "Google Sans", Prompt`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; 
         ctx.fillText(`${m.homeTeam[0].name} & ${m.homeTeam[1].name}`, x + cardW/2 - nameOffset, teamY); 
         
-        // ทีมเยือน
         ctx.textAlign = 'left'; 
         ctx.fillText(`${m.awayTeam[0].name} & ${m.awayTeam[1].name}`, x + cardW/2 + nameOffset, teamY); 
     });
@@ -671,6 +677,8 @@ function goToAdminMode() {
 
 function copyShareLink(type) {
     let shareUrl = window.location.origin + window.location.pathname + '?m=' + currentCompressedData;
+    shareUrl += '&openExternalBrowser=1';
+
     if (type === 'admin') {
         shareUrl += '&admin=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
@@ -715,7 +723,7 @@ function startLiveBroadcast() {
 
 function updateLiveBannerHost() {
     const banner = document.getElementById('liveStatusBanner');
-    banner.innerHTML = `📡 ถ่ายทอดสดคะแนน (มีผู้ชมอยู่ <b>${connections.length}</b> คน)`;
+    banner.innerHTML = `📡 ถ่ายทอดสดคะแนน (มีคนดูอยู่ <b>${connections.length}</b> เครื่อง)`;
 }
 
 function broadcastSync() {
@@ -730,8 +738,39 @@ window.addEventListener('beforeunload', function (e) {
     }
 });
 
+function checkLineBrowser() {
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    if (ua.indexOf('Line') > -1) {
+        const warningDiv = document.createElement('div');
+        warningDiv.className = "bg-red-500 text-white p-3 sm:p-4 text-center font-prompt text-xs sm:text-sm shadow-lg sticky top-0 z-50 w-full animate-bounce";
+        warningDiv.innerHTML = `
+            <b>⚠️ เปิดในแอป LINE คะแนนอาจไม่อัปเดต</b><br>
+            กรุณากดปุ่ม <b class="bg-white/20 px-1 rounded">⋮</b> หรือ <b class="bg-white/20 px-1 rounded">↑</b> ที่มุมขวาบน/ล่าง<br>
+            แล้วเลือก <b>"เปิดในเบราว์เซอร์อื่น (Open in Browser)"</b>
+        `;
+        document.body.prepend(warningDiv);
+    }
+}
+
+// ฟังก์ชันสำหรับดึงคะแนนเก่าจาก LocalStorage
+function loadScoresFromLocal(roomId) {
+    const savedScores = localStorage.getItem('pkb_score_' + roomId);
+    if (savedScores) {
+        const parsed = JSON.parse(savedScores);
+        matches.forEach((m, i) => {
+            if (parsed[i]) { 
+                m.homeScore = parsed[i].h; 
+                m.awayScore = parsed[i].a; 
+                m.isFinished = parsed[i].f; 
+            }
+        });
+    }
+}
+
 // ================= โหลดข้อมูลเมื่อเปิดเว็บ =================
 window.addEventListener('DOMContentLoaded', () => {
+    checkLineBrowser();
+
     const urlParams = new URLSearchParams(window.location.search);
     let mParam = urlParams.get('m');
     let adminId = urlParams.get('admin');
@@ -760,7 +799,13 @@ window.addEventListener('DOMContentLoaded', () => {
                 awayTeam.forEach(p => { p.gamesPlayed++; p.awayGames++; });
                 sittingOut.forEach(p => { if (p.firstRestAt === Infinity) p.firstRestAt = ms[0]; });
 
-                return { gameNum: ms[0], homeTeam, awayTeam, sittingOut, homeScore: 0, awayScore: 0, isFinished: false };
+                // อัปเกรด: อ่านคะแนนที่ฝังมากับลิงก์ URL (ถ้ามี)
+                return { 
+                    gameNum: ms[0], homeTeam, awayTeam, sittingOut, 
+                    homeScore: ms[4] || 0, 
+                    awayScore: ms[5] || 0, 
+                    isFinished: ms[6] === 1 
+                };
             });
 
             updatePlayerList();
@@ -786,14 +831,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('viewModeTitle').innerHTML = "👑 โหมดจัดการคะแนน (กรรมการ)";
                 document.getElementById('viewModeDesc').innerHTML = "คุณคือกรรมการ: กรุณากดปุ่มเพิ่ม-ลดคะแนน เพื่อถ่ายทอดสดให้ทุกคนเห็น";
                 
-                const savedScores = localStorage.getItem('pkb_score_' + currentRoomId);
-                if (savedScores) {
-                    const parsed = JSON.parse(savedScores);
-                    matches.forEach((m, i) => {
-                        if (parsed[i]) { m.homeScore = parsed[i].h; m.awayScore = parsed[i].a; m.isFinished = parsed[i].f; }
-                    });
-                }
-                
+                loadScoresFromLocal(currentRoomId);
                 startLiveBroadcast();
 
             } else if (liveId) {
@@ -803,6 +841,8 @@ window.addEventListener('DOMContentLoaded', () => {
                 banner.classList.remove('hidden');
                 banner.className = "text-sm font-bold text-center p-3 rounded-lg mb-4 font-prompt shadow-sm transition-all bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800";
                 banner.innerHTML = `⏳ กำลังต่อสายหากระดานคะแนนสด...`;
+
+                loadScoresFromLocal(currentRoomId);
 
                 peer = new Peer();
                 peer.on('open', () => {
@@ -821,21 +861,25 @@ window.addEventListener('DOMContentLoaded', () => {
                                     matches[i].isFinished = updatedMatch.isFinished;
                                 }
                             });
+                            
+                            const scores = matches.map(m => ({ h: m.homeScore, a: m.awayScore, f: m.isFinished }));
+                            localStorage.setItem('pkb_score_' + currentRoomId, JSON.stringify(scores));
+                            
                             renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
-                            drawMatchListCanvas(matches); // อัปเดตรูปให้คนดูด้วย!
+                            drawMatchListCanvas(matches);
                             if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
                         }
                     });
 
                     conn.on('close', () => {
                         banner.className = "text-sm font-bold text-center p-3 rounded-lg mb-4 font-prompt shadow-sm transition-all bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800";
-                        banner.innerHTML = `🔴 ขาดการเชื่อมต่อ (กรรมการปิดหน้าจอไปแล้ว)`;
+                        banner.innerHTML = `🔴 ขาดการเชื่อมต่อ (รออัปเดต / กดรีเฟรชหน้าจอ)`;
                     });
                 });
                 
                 peer.on('error', (err) => {
                     banner.className = "text-sm font-bold text-center p-3 rounded-lg mb-4 font-prompt shadow-sm transition-all bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-300 dark:border-gray-600";
-                    banner.innerHTML = `⚪️ ถ่ายทอดสดจบลงแล้ว (ไม่มีกรรมการอยู่ในห้อง)`;
+                    banner.innerHTML = `⚪️ ถ่ายทอดสดจบลงแล้ว (ดูผลสรุปล่าสุด)`;
                 });
             } else {
                 currentRole = 'STATIC'; 
