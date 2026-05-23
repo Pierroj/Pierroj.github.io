@@ -23,8 +23,8 @@ if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.match
 let players = [];
 let matches = []; 
 
-// ระบบจัดการสถานะ (3 หน้าที่)
-let currentRole = 'NONE'; // INITIAL (จัดคิวเฉยๆ), ADMIN (กรรมการ), VIEWER (คนดู)
+// ระบบจัดการสถานะ
+let currentRole = 'NONE'; 
 let currentCompressedData = '';
 let currentRoomId = '';
 
@@ -232,8 +232,8 @@ function generateMatches() {
         matches.push({ gameNum: i, homeTeam: home, awayTeam: away, sittingOut, homeScore: 0, awayScore: 0, isFinished: false });
     }
 
-    // สร้างข้อมูลบีบอัดครั้งแรก
     updateCompressedData(enableScoreTable);
+    updateAddressBarURL(); // อัปเดตลิงก์ด้านบน
 
     renderHTMLSummary(matches, enableScoreTable);
     
@@ -247,7 +247,7 @@ function generateMatches() {
     }
 }
 
-// ฟังก์ชันอัปเดตข้อมูลบีบอัดสำหรับฝังใน URL (ระบบ Snapshot ฝังคะแนน)
+// 🔧 ฟังก์ชันบีบอัดข้อมูล (แช่แข็งคะแนนใส่ลิงก์)
 function updateCompressedData(enableScoreTable) {
     const pNames = players.map(p => p.name);
     const pBegins = players.map(p => p.isBeginner ? 1 : 0);
@@ -256,24 +256,36 @@ function updateCompressedData(enableScoreTable) {
         m.homeTeam.map(p => pNames.indexOf(p.name)),
         m.awayTeam.map(p => pNames.indexOf(p.name)), 
         m.sittingOut.map(p => pNames.indexOf(p.name)),
-        m.homeScore || 0,     // จำคะแนนทีมเหย้า
-        m.awayScore || 0,     // จำคะแนนทีมเยือน
-        m.isFinished ? 1 : 0  // จำสถานะการจบแมตช์
+        m.homeScore || 0,     
+        m.awayScore || 0,     
+        m.isFinished ? 1 : 0  
     ]);
     const shareData = [pNames, pBegins, mShrink, enableScoreTable ? 1 : 0];
     currentCompressedData = LZString.compressToEncodedURIComponent(JSON.stringify(shareData));
 }
+
+// 🔧 ฟังก์ชันอัปเดต URL ตรงช่อง Address Bar (แก้บั๊กคนก๊อปปี้จากด้านบน)
+function updateAddressBarURL() {
+    if (currentRole === 'INITIAL' || currentRole === 'NONE') return;
+    let newUrl = window.location.pathname + '?m=' + currentCompressedData;
+    if (currentRole === 'ADMIN') newUrl += '&openExternalBrowser=1&admin=' + currentRoomId;
+    else if (currentRole === 'VIEWER') newUrl += '&openExternalBrowser=1&live=' + currentRoomId;
+    
+    history.replaceState(null, '', newUrl); // เปลี่ยน URL โดยไม่ต้องรีเฟรชหน้า
+}
+
 
 // ================= ระบบควบคุมคะแนน & เปิด-ปิดตารางสด =================
 function saveScoresToLocal() {
     const scores = matches.map(m => ({ h: m.homeScore, a: m.awayScore, f: m.isFinished }));
     localStorage.setItem('pkb_score_' + currentRoomId, JSON.stringify(scores));
     
-    // สำคัญ: อัปเดตข้อมูลลิงก์เผื่อกรรมการกดก็อปปี้แชร์ลง LINE (ระบบ Snapshot)
     let isScoreTableEnabled = false;
     const checkbox = document.getElementById('enableScoreTable');
     if (checkbox) isScoreTableEnabled = checkbox.checked;
+    
     updateCompressedData(isScoreTableEnabled);
+    updateAddressBarURL(); // สั่งให้ช่อง URL ด้านบนเปลี่ยนตามคะแนนด้วย!
 }
 
 function setScore(index, team, val) {
@@ -329,7 +341,9 @@ function toggleScoreTable() {
     const checkbox = document.getElementById('enableScoreTable');
     checkbox.checked = !checkbox.checked;
     
-    updateCompressedData(checkbox.checked); // อัปเดตลิงก์ให้ฝังสถานะตารางไปด้วย
+    updateCompressedData(checkbox.checked);
+    updateAddressBarURL(); 
+    
     renderHTMLSummary(matches, checkbox.checked);
     drawMatchListCanvas(matches);
     
@@ -338,7 +352,7 @@ function toggleScoreTable() {
     }
 }
 
-// ================= อัปเดตหน้าตา UI (ปุ่ม Flex Responsive) =================
+// ================= อัปเดตหน้าตา UI =================
 function renderHTMLSummary(matches, enableScoreTable) {
     document.getElementById('statsSection').classList.remove('hidden');
     document.getElementById('matchListSection').classList.remove('hidden');
@@ -371,15 +385,15 @@ function renderHTMLSummary(matches, enableScoreTable) {
     if (currentRole === 'INITIAL') {
         mlBtns.innerHTML = `
             <button onclick="goToAdminMode()" class="${btnClass} bg-blue-600 hover:bg-blue-700 text-white">👑 โหมดกรรมการ</button>
-            <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์ผู้ชม</button>
+            <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์คนดู</button>
             ${toggleBtn}
             ${imgBtn}
             ${pdfBtn}
         `;
     } else if (currentRole === 'ADMIN') {
         mlBtns.innerHTML = `
-            <button onclick="copyShareLink('admin')" class="${btnClass} bg-yellow-600 hover:bg-yellow-700 text-white">👑 ลิงก์ตัวเอง</button>
-            <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์ผู้ชม</button>
+            <button onclick="copyShareLink('admin')" class="${btnClass} bg-yellow-600 hover:bg-yellow-700 text-white">👑 ลิงก์กรรมการ</button>
+            <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์คนดู</button>
             ${toggleBtn}
             ${imgBtn}
             ${pdfBtn}
@@ -393,7 +407,7 @@ function renderHTMLSummary(matches, enableScoreTable) {
     }
 
     cvBtns.innerHTML = `
-        <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์ผู้ชม</button>
+        <button onclick="copyShareLink('viewer')" class="${btnClass} bg-purple-600 hover:bg-purple-700 text-white">🔗 ลิงก์คนดู</button>
         <button onclick="saveScoreTableImage()" class="${btnClass} bg-blue-600 hover:bg-blue-700 text-white">🖼️ เซฟรูป</button>
         <button onclick="saveScoreTablePDF()" class="${btnClass} bg-red-500 hover:bg-red-600 text-white">📄 PDF</button>
         <button onclick="window.print()" class="${btnClass} bg-gray-700 hover:bg-gray-800 text-white">🖨️ พิมพ์</button>
@@ -481,7 +495,7 @@ function renderHTMLSummary(matches, enableScoreTable) {
     `}).join('');
 }
 
-// ================= วาดรูป A4 (ตารางแข่งขัน) =================
+// ================= วาดรูป A4 =================
 function drawMatchListCanvas(matches) {
     const canvas = document.getElementById('matchListCanvas');
     const ctx = canvas.getContext('2d');
@@ -687,7 +701,7 @@ function copyShareLink(type) {
     } else if (type === 'viewer') {
         shareUrl += '&live=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert('🔗 คัดลอก "ลิงก์ผู้ชม" สำเร็จ!');
+            alert('🔗 คัดลอก "ลิงก์คนดู" สำเร็จ!');
         }).catch(err => prompt('คัดลอกไม่ได้ กรุณาก๊อปปี้ลิงก์นี้:', shareUrl));
     }
 }
@@ -752,11 +766,24 @@ function checkLineBrowser() {
     }
 }
 
-// ฟังก์ชันสำหรับดึงคะแนนเก่าจาก LocalStorage
+// 🔧 ฟังก์ชันดึงคะแนนเก่า (อัปเกรดความฉลาด แก้บั๊กทับลิงก์ใหม่)
 function loadScoresFromLocal(roomId) {
     const savedScores = localStorage.getItem('pkb_score_' + roomId);
     if (savedScores) {
         const parsed = JSON.parse(savedScores);
+        
+        // 1. หาผลรวมคะแนนจาก URL ลิงก์ที่เพิ่งกดเข้ามา
+        let urlTotalScore = matches.reduce((sum, m) => sum + m.homeScore + m.awayScore + (m.isFinished ? 100 : 0), 0);
+        
+        // 2. หาผลรวมคะแนนจากความจำในมือถือ
+        let localTotalScore = parsed.reduce((sum, p) => sum + p.h + p.a + (p.f ? 100 : 0), 0);
+
+        // 🛡️ ถ้าลิงก์ URL มีคะแนนที่อัปเดตกว่าในเครื่องเพื่อน ให้ยึด URL เป็นหลัก! (เตะความจำเก่าทิ้ง)
+        if (urlTotalScore > localTotalScore) {
+            return; 
+        }
+
+        // แต่ถ้าในมือถือเพื่อนอัปเดตกว่า (เช่น เพิ่งรีเฟรชหน้าตอนถ่ายทอดสด) ค่อยเอามาทับ
         matches.forEach((m, i) => {
             if (parsed[i]) { 
                 m.homeScore = parsed[i].h; 
@@ -799,7 +826,6 @@ window.addEventListener('DOMContentLoaded', () => {
                 awayTeam.forEach(p => { p.gamesPlayed++; p.awayGames++; });
                 sittingOut.forEach(p => { if (p.firstRestAt === Infinity) p.firstRestAt = ms[0]; });
 
-                // อัปเกรด: อ่านคะแนนที่ฝังมากับลิงก์ URL (ถ้ามี)
                 return { 
                     gameNum: ms[0], homeTeam, awayTeam, sittingOut, 
                     homeScore: ms[4] || 0, 
