@@ -118,6 +118,7 @@ function generateMatches() {
     let prevTeams = [];
     let partnerHistory = {};
     let matchHistory = {}; 
+    let matchupHistoryCount = {}; // ระบบใหม่! จำว่าแมตช์นี้ (ทีม A เจอกับทีม B) เคยเล่นไปกี่รอบแล้ว
     let restSequence = [];
 
     for (let i = 1; i <= totalGamesInput; i++) {
@@ -186,14 +187,24 @@ function generateMatches() {
         let nonConsec = possiblePairs.filter(c => !prevTeams.includes(getTeamKey(c[0][0], c[0][1])) && !prevTeams.includes(getTeamKey(c[1][0], c[1][1])));
         let combosToEval = nonConsec.length > 0 ? nonConsec : possiblePairs;
 
+        // อัปเกรด: ประเมินคะแนนการจัดคู่แต่ละแบบ
         combosToEval.forEach(c => {
-            const h1 = partnerHistory[getTeamKey(c[0][0], c[0][1])] || 0;
-            const h2 = partnerHistory[getTeamKey(c[1][0], c[1][1])] || 0;
+            const t1Key = getTeamKey(c[0][0], c[0][1]);
+            const t2Key = getTeamKey(c[1][0], c[1][1]);
+            
+            const h1 = partnerHistory[t1Key] || 0;
+            const h2 = partnerHistory[t2Key] || 0;
             c.maxH = Math.max(h1, h2); 
             c.sumH = h1 + h2;
+            
+            // เช็คว่าทีมสองทีมนี้ เคยดวลกันไปหรือยัง
+            const mKey = [t1Key, t2Key].sort().join('VS');
+            c.matchupCount = matchupHistoryCount[mKey] || 0;
         });
         
+        // จัดเรียงความเหมาะสม: หลีกเลี่ยงแมตช์ซ้ำ > หลีกเลี่ยงคู่ซ้ำ
         combosToEval.sort((a, b) => {
+            if (a.matchupCount !== b.matchupCount) return a.matchupCount - b.matchupCount; // เช็คแมตช์ซ้ำก่อนเลย!
             if (a.maxH !== b.maxH) return a.maxH - b.maxH;
             if (a.sumH !== b.sumH) return a.sumH - b.sumH;
             return Math.random() - 0.5;
@@ -220,6 +231,7 @@ function generateMatches() {
             }
         }
         matchHistory[matchKey] = getTeamKey(home[0], home[1]);
+        matchupHistoryCount[matchKey] = (matchupHistoryCount[matchKey] || 0) + 1; // บันทึกว่าคู่นี้เจอกันแล้ว 1 รอบ
 
         home.forEach(p => { p.gamesPlayed++; p.homeGames++; p.consecutiveGames++; p.consecutiveRests = 0; });
         away.forEach(p => { p.gamesPlayed++; p.awayGames++; p.consecutiveGames++; p.consecutiveRests = 0; });
@@ -233,7 +245,7 @@ function generateMatches() {
     }
 
     updateCompressedData(enableScoreTable);
-    updateAddressBarURL(); // อัปเดตลิงก์ด้านบน
+    updateAddressBarURL();
 
     renderHTMLSummary(matches, enableScoreTable);
     
@@ -264,16 +276,15 @@ function updateCompressedData(enableScoreTable) {
     currentCompressedData = LZString.compressToEncodedURIComponent(JSON.stringify(shareData));
 }
 
-// 🔧 ฟังก์ชันอัปเดต URL ตรงช่อง Address Bar (แก้บั๊กคนก๊อปปี้จากด้านบน)
+// 🔧 ฟังก์ชันอัปเดต URL ตรงช่อง Address Bar 
 function updateAddressBarURL() {
     if (currentRole === 'INITIAL' || currentRole === 'NONE') return;
     let newUrl = window.location.pathname + '?m=' + currentCompressedData;
     if (currentRole === 'ADMIN') newUrl += '&openExternalBrowser=1&admin=' + currentRoomId;
     else if (currentRole === 'VIEWER') newUrl += '&openExternalBrowser=1&live=' + currentRoomId;
     
-    history.replaceState(null, '', newUrl); // เปลี่ยน URL โดยไม่ต้องรีเฟรชหน้า
+    history.replaceState(null, '', newUrl); 
 }
-
 
 // ================= ระบบควบคุมคะแนน & เปิด-ปิดตารางสด =================
 function saveScoresToLocal() {
@@ -285,7 +296,7 @@ function saveScoresToLocal() {
     if (checkbox) isScoreTableEnabled = checkbox.checked;
     
     updateCompressedData(isScoreTableEnabled);
-    updateAddressBarURL(); // สั่งให้ช่อง URL ด้านบนเปลี่ยนตามคะแนนด้วย!
+    updateAddressBarURL(); 
 }
 
 function setScore(index, team, val) {
@@ -696,12 +707,12 @@ function copyShareLink(type) {
     if (type === 'admin') {
         shareUrl += '&admin=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert('👑 คัดลอก "ลิงก์กรรมการ" สำเร็จ!');
+            alert('👑 คัดลอก "ลิงก์กรรมการ" สำเร็จ!\nโปรดเซฟลิงก์นี้เก็บไว้ หากเผลอปิดเว็บให้เปิดลิงก์นี้เพื่อกู้คะแนนกลับมาครับ');
         }).catch(err => prompt('คัดลอกไม่ได้ กรุณาก๊อปปี้ลิงก์นี้:', shareUrl));
     } else if (type === 'viewer') {
         shareUrl += '&live=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert('🔗 คัดลอก "ลิงก์คนดู" สำเร็จ!');
+            alert('🔗 คัดลอก "ลิงก์คนดู" สำเร็จ!\nนำไปแชร์ให้เพื่อนๆ ดูได้เลย (ลิงก์นี้ฝังคะแนนล่าสุดไว้แล้วด้วยครับ!)');
         }).catch(err => prompt('คัดลอกไม่ได้ กรุณาก๊อปปี้ลิงก์นี้:', shareUrl));
     }
 }
@@ -766,24 +777,19 @@ function checkLineBrowser() {
     }
 }
 
-// 🔧 ฟังก์ชันดึงคะแนนเก่า (อัปเกรดความฉลาด แก้บั๊กทับลิงก์ใหม่)
+// 🔧 ฟังก์ชันดึงคะแนนเก่า
 function loadScoresFromLocal(roomId) {
     const savedScores = localStorage.getItem('pkb_score_' + roomId);
     if (savedScores) {
         const parsed = JSON.parse(savedScores);
         
-        // 1. หาผลรวมคะแนนจาก URL ลิงก์ที่เพิ่งกดเข้ามา
         let urlTotalScore = matches.reduce((sum, m) => sum + m.homeScore + m.awayScore + (m.isFinished ? 100 : 0), 0);
-        
-        // 2. หาผลรวมคะแนนจากความจำในมือถือ
         let localTotalScore = parsed.reduce((sum, p) => sum + p.h + p.a + (p.f ? 100 : 0), 0);
 
-        // 🛡️ ถ้าลิงก์ URL มีคะแนนที่อัปเดตกว่าในเครื่องเพื่อน ให้ยึด URL เป็นหลัก! (เตะความจำเก่าทิ้ง)
         if (urlTotalScore > localTotalScore) {
             return; 
         }
 
-        // แต่ถ้าในมือถือเพื่อนอัปเดตกว่า (เช่น เพิ่งรีเฟรชหน้าตอนถ่ายทอดสด) ค่อยเอามาทับ
         matches.forEach((m, i) => {
             if (parsed[i]) { 
                 m.homeScore = parsed[i].h; 
