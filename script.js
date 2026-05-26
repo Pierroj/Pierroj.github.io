@@ -118,7 +118,7 @@ function generateMatches() {
     let prevTeams = [];
     let partnerHistory = {};
     let matchHistory = {}; 
-    let matchupHistoryCount = {}; // ระบบใหม่! จำว่าแมตช์นี้ (ทีม A เจอกับทีม B) เคยเล่นไปกี่รอบแล้ว
+    let matchupHistoryCount = {}; 
     let restSequence = [];
 
     for (let i = 1; i <= totalGamesInput; i++) {
@@ -187,7 +187,6 @@ function generateMatches() {
         let nonConsec = possiblePairs.filter(c => !prevTeams.includes(getTeamKey(c[0][0], c[0][1])) && !prevTeams.includes(getTeamKey(c[1][0], c[1][1])));
         let combosToEval = nonConsec.length > 0 ? nonConsec : possiblePairs;
 
-        // อัปเกรด: ประเมินคะแนนการจัดคู่แต่ละแบบ
         combosToEval.forEach(c => {
             const t1Key = getTeamKey(c[0][0], c[0][1]);
             const t2Key = getTeamKey(c[1][0], c[1][1]);
@@ -197,14 +196,12 @@ function generateMatches() {
             c.maxH = Math.max(h1, h2); 
             c.sumH = h1 + h2;
             
-            // เช็คว่าทีมสองทีมนี้ เคยดวลกันไปหรือยัง
             const mKey = [t1Key, t2Key].sort().join('VS');
             c.matchupCount = matchupHistoryCount[mKey] || 0;
         });
         
-        // จัดเรียงความเหมาะสม: หลีกเลี่ยงแมตช์ซ้ำ > หลีกเลี่ยงคู่ซ้ำ
         combosToEval.sort((a, b) => {
-            if (a.matchupCount !== b.matchupCount) return a.matchupCount - b.matchupCount; // เช็คแมตช์ซ้ำก่อนเลย!
+            if (a.matchupCount !== b.matchupCount) return a.matchupCount - b.matchupCount; 
             if (a.maxH !== b.maxH) return a.maxH - b.maxH;
             if (a.sumH !== b.sumH) return a.sumH - b.sumH;
             return Math.random() - 0.5;
@@ -231,7 +228,7 @@ function generateMatches() {
             }
         }
         matchHistory[matchKey] = getTeamKey(home[0], home[1]);
-        matchupHistoryCount[matchKey] = (matchupHistoryCount[matchKey] || 0) + 1; // บันทึกว่าคู่นี้เจอกันแล้ว 1 รอบ
+        matchupHistoryCount[matchKey] = (matchupHistoryCount[matchKey] || 0) + 1;
 
         home.forEach(p => { p.gamesPlayed++; p.homeGames++; p.consecutiveGames++; p.consecutiveRests = 0; });
         away.forEach(p => { p.gamesPlayed++; p.awayGames++; p.consecutiveGames++; p.consecutiveRests = 0; });
@@ -259,7 +256,29 @@ function generateMatches() {
     }
 }
 
-// 🔧 ฟังก์ชันบีบอัดข้อมูล (แช่แข็งคะแนนใส่ลิงก์)
+// 🔧 คำนวณสถิติผู้เล่นใหม่ทั้งหมด (ใช้ตอนแก้ไขรายชื่อผู้เล่นกลางคัน)
+function recalculatePlayerStats() {
+    players.forEach(p => {
+        p.gamesPlayed = 0; p.homeGames = 0; p.awayGames = 0;
+        p.firstRestAt = Infinity;
+    });
+    
+    matches.forEach(m => {
+        m.homeTeam.forEach(p => { 
+            let pl = players.find(x => x.name === p.name);
+            if(pl) { pl.gamesPlayed++; pl.homeGames++; }
+        });
+        m.awayTeam.forEach(p => { 
+            let pl = players.find(x => x.name === p.name);
+            if(pl) { pl.gamesPlayed++; pl.awayGames++; }
+        });
+        m.sittingOut.forEach(p => { 
+            let pl = players.find(x => x.name === p.name);
+            if(pl && pl.firstRestAt === Infinity) pl.firstRestAt = m.gameNum; 
+        });
+    });
+}
+
 function updateCompressedData(enableScoreTable) {
     const pNames = players.map(p => p.name);
     const pBegins = players.map(p => p.isBeginner ? 1 : 0);
@@ -276,7 +295,6 @@ function updateCompressedData(enableScoreTable) {
     currentCompressedData = LZString.compressToEncodedURIComponent(JSON.stringify(shareData));
 }
 
-// 🔧 ฟังก์ชันอัปเดต URL ตรงช่อง Address Bar 
 function updateAddressBarURL() {
     if (currentRole === 'INITIAL' || currentRole === 'NONE') return;
     let newUrl = window.location.pathname + '?m=' + currentCompressedData;
@@ -284,6 +302,100 @@ function updateAddressBarURL() {
     else if (currentRole === 'VIEWER') newUrl += '&openExternalBrowser=1&live=' + currentRoomId;
     
     history.replaceState(null, '', newUrl); 
+}
+
+// ================= ฟังก์ชันกรรมการ: แก้ไขผู้เล่น (Edit Match) =================
+function openEditMatch(index) {
+    const m = matches[index];
+    const pNames = players.map(p => p.name);
+    
+    // สร้าง Dropdown ให้อัตโนมัติ
+    const makeOptions = (selectedName) => {
+        return pNames.map(name => `<option value="${name}" ${name === selectedName ? 'selected' : ''}>${name}</option>`).join('');
+    };
+
+    const modalHTML = `
+    <div id="editMatchModal" class="fixed inset-0 bg-black/60 z-[100] flex justify-center items-center p-4 backdrop-blur-sm transition-opacity">
+        <div class="bg-white dark:bg-gray-800 rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-2xl border border-gray-200 dark:border-gray-700 transform transition-transform scale-100">
+            <h3 class="font-bold text-lg mb-4 text-gray-800 dark:text-white font-prompt flex items-center justify-between">
+                <span>✏️ แก้ไขคนเล่น Game ${m.gameNum}</span>
+                <button onclick="closeEditModal()" class="text-gray-400 hover:text-red-500 text-2xl leading-none">&times;</button>
+            </h3>
+            
+            <div class="space-y-4 mb-6">
+                <div class="bg-blue-50 dark:bg-blue-900/20 p-3.5 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-inner">
+                    <div class="text-xs font-bold text-blue-600 dark:text-blue-400 mb-2">🏠 ทีมเหย้า</div>
+                    <select id="editH1" class="w-full mb-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium shadow-sm">
+                        ${makeOptions(m.homeTeam[0].name)}
+                    </select>
+                    <select id="editH2" class="w-full p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium shadow-sm">
+                        ${makeOptions(m.homeTeam[1].name)}
+                    </select>
+                </div>
+                
+                <div class="bg-orange-50 dark:bg-orange-900/20 p-3.5 rounded-xl border border-orange-100 dark:border-orange-800/50 shadow-inner">
+                    <div class="text-xs font-bold text-orange-600 dark:text-orange-400 mb-2">🚀 ทีมเยือน</div>
+                    <select id="editA1" class="w-full mb-2 p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 font-medium shadow-sm">
+                        ${makeOptions(m.awayTeam[0].name)}
+                    </select>
+                    <select id="editA2" class="w-full p-2.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-white text-sm outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-500 font-medium shadow-sm">
+                        ${makeOptions(m.awayTeam[1].name)}
+                    </select>
+                </div>
+            </div>
+            
+            <button onclick="saveEditMatch(${index})" class="w-full py-3.5 rounded-xl font-bold text-white bg-green-600 hover:bg-green-700 transition shadow-md active:scale-95 text-base font-prompt">
+                💾 บันทึกการเปลี่ยนแปลง
+            </button>
+        </div>
+    </div>
+    `;
+    
+    const div = document.createElement('div');
+    div.id = 'modalContainer';
+    div.innerHTML = modalHTML;
+    document.body.appendChild(div);
+}
+
+function closeEditModal() {
+    const container = document.getElementById('modalContainer');
+    if(container) container.remove();
+}
+
+function saveEditMatch(index) {
+    const h1 = document.getElementById('editH1').value;
+    const h2 = document.getElementById('editH2').value;
+    const a1 = document.getElementById('editA1').value;
+    const a2 = document.getElementById('editA2').value;
+    
+    const selectedNames = [h1, h2, a1, a2];
+    const uniqueNames = new Set(selectedNames);
+    
+    if (uniqueNames.size !== 4) {
+        alert('ผู้เล่นทั้ง 4 คนต้องไม่ซ้ำกันครับ! กรุณาตรวจสอบรายชื่ออีกครั้ง ⚠️');
+        return;
+    }
+    
+    // อัปเดตข้อมูลคู่แข่งใหม่
+    matches[index].homeTeam = [players.find(p => p.name === h1), players.find(p => p.name === h2)];
+    matches[index].awayTeam = [players.find(p => p.name === a1), players.find(p => p.name === a2)];
+    
+    // หาคนที่เหลือให้ไปนั่งพัก
+    matches[index].sittingOut = players.filter(p => !selectedNames.includes(p.name));
+    
+    closeEditModal();
+    
+    // รีเซ็ตแล้วคำนวณสถิติใหม่ทั้งหมด
+    recalculatePlayerStats();
+    
+    // เซฟลงเครื่องและอัปเดตหน้าจอ
+    saveScoresToLocal();
+    renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
+    drawMatchListCanvas(matches);
+    if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
+    
+    // ส่งข้อมูลใหม่ไปให้ผู้ชม
+    broadcastSync();
 }
 
 // ================= ระบบควบคุมคะแนน & เปิด-ปิดตารางสด =================
@@ -438,6 +550,12 @@ function renderHTMLSummary(matches, enableScoreTable) {
 
     document.getElementById('matches').innerHTML = matches.map((m, index) => {
         let scoreUI = '';
+        
+        // อัปเกรด: เพิ่มปุ่ม "แก้ไขคู่" สำหรับ Admin
+        let editButtonHTML = (currentRole === 'ADMIN' && !m.isFinished) 
+            ? `<button onclick="openEditMatch(${index})" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-[11px] sm:text-xs font-bold transition flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-md border border-blue-200 dark:border-blue-800 active:scale-95 shadow-sm">✏️ เปลี่ยนตัว</button>` 
+            : '';
+
         if (currentRole === 'ADMIN') {
             scoreUI = `
                 <div class="flex justify-between items-center mt-3 bg-white dark:bg-gray-900/50 p-2 rounded-lg border border-gray-100 dark:border-gray-600 shadow-inner">
@@ -468,7 +586,12 @@ function renderHTMLSummary(matches, enableScoreTable) {
 
         return `
             <div class="border border-gray-200 dark:border-gray-700 p-3 rounded-xl shadow-sm bg-gray-50 dark:bg-gray-800/80 border-l-4 ${m.isFinished ? 'border-l-gray-400 bg-gray-100 dark:bg-gray-800' : 'border-l-green-500 hover:bg-green-50 dark:hover:bg-gray-700'} transition-colors relative">
-                <div class="font-bold text-gray-700 dark:text-gray-200 mb-2 font-prompt text-sm">Game ${m.gameNum}</div>
+                
+                <div class="flex justify-between items-center mb-2">
+                    <div class="font-bold text-gray-700 dark:text-gray-200 font-prompt text-sm">Game ${m.gameNum}</div>
+                    ${editButtonHTML}
+                </div>
+
                 <div class="flex justify-between items-center bg-white dark:bg-gray-700 p-2.5 rounded-lg border border-gray-100 dark:border-gray-600 shadow-sm ${m.isFinished ? 'opacity-75' : ''}">
                     <div class="flex-1 text-center font-medium text-sm">
                         <div class="text-[10px] text-blue-600 dark:text-blue-400 mb-0.5 font-prompt tracking-wide">🏠 เหย้า</div>
@@ -777,7 +900,6 @@ function checkLineBrowser() {
     }
 }
 
-// 🔧 ฟังก์ชันดึงคะแนนเก่า
 function loadScoresFromLocal(roomId) {
     const savedScores = localStorage.getItem('pkb_score_' + roomId);
     if (savedScores) {
@@ -888,11 +1010,18 @@ window.addEventListener('DOMContentLoaded', () => {
                         if (data.type === 'SYNC') {
                             data.matches.forEach((updatedMatch, i) => {
                                 if (matches[i]) {
+                                    // อัปเกรด: อัปเดตรายชื่อคู่แข่งเผื่อกรรมการแก้ตัวผู้เล่นกลางคันด้วย
+                                    matches[i].homeTeam = updatedMatch.homeTeam;
+                                    matches[i].awayTeam = updatedMatch.awayTeam;
+                                    matches[i].sittingOut = updatedMatch.sittingOut;
+                                    
                                     matches[i].homeScore = updatedMatch.homeScore;
                                     matches[i].awayScore = updatedMatch.awayScore;
                                     matches[i].isFinished = updatedMatch.isFinished;
                                 }
                             });
+                            
+                            recalculatePlayerStats(); // คำนวณสถิติใหม่เผื่อมีคนโดนสลับตัว
                             
                             const scores = matches.map(m => ({ h: m.homeScore, a: m.awayScore, f: m.isFinished }));
                             localStorage.setItem('pkb_score_' + currentRoomId, JSON.stringify(scores));
