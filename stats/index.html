@@ -4,14 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pickleball League Dashboard</title>
-    <!-- โหลด Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- โหลด LZ-String -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
-    <!-- โหลด Chart.js สำหรับสร้างกราฟ -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- ตั้งค่า Tailwind ให้รองรับ Dark Mode -->
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -22,7 +18,7 @@
         @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap');
         body { font-family: 'Kanit', sans-serif; }
 
-        /* ตกแต่ง Scrollbar ให้สวยงาม (Custom Scrollbar) */
+        /* ตกแต่ง Scrollbar ให้สวยงาม */
         .custom-scrollbar::-webkit-scrollbar {
             height: 8px; 
             width: 8px;  
@@ -53,18 +49,11 @@
 
     <div class="max-w-6xl mx-auto space-y-6">
         
-        <!-- Header & Dark Mode Toggle (แก้ไขส่วนนี้ใหม่ให้ไม่ทับกัน) -->
         <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
-            
-            <!-- Spacer เพื่อให้ข้อความตรงกลางสมดุล (แสดงเฉพาะจอใหญ่) -->
             <div class="hidden md:block md:w-1/4"></div>
-            
-            <!-- ข้อความ Header (อยู่ตรงกลาง) -->
             <div class="text-center w-full md:w-2/4 space-y-2">
                 <h1 class="text-3xl sm:text-4xl font-bold text-indigo-700 dark:text-indigo-400 tracking-tight">🏆 Pickleball League Stats</h1>
             </div>
-
-            <!-- Toggle Bar (Dark Mode) -->
             <div class="w-full md:w-1/4 flex justify-center md:justify-end items-center gap-2">
                 <span class="text-lg opacity-80">☀️</span>
                 <label class="relative inline-flex items-center cursor-pointer">
@@ -75,7 +64,6 @@
             </div>
         </div>
 
-        <!-- Section: นำเข้าข้อมูล -->
         <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors">
             <div class="flex items-center space-x-2 mb-4">
                 <span class="text-2xl">📥</span>
@@ -88,7 +76,6 @@
                     <button onclick="processLinks(-1)" class="w-full sm:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition shadow-sm">
                         ⚡ คำนวณสถิติทั้งหมด
                     </button>
-                    <!-- ปุ่มสำหรับสร้างลิงก์แชร์ -->
                     <button onclick="generateShareLink()" class="w-full sm:w-auto px-6 py-3 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium rounded-xl transition shadow-sm flex items-center justify-center gap-2">
                         <span>🔗</span> คัดลอกลิงก์แชร์ (รวมทุกวีค)
                     </button>
@@ -97,12 +84,10 @@
             </div>
         </div>
 
-        <!-- Badge แสดงสถานะการดูข้อมูลปัจจุบัน -->
         <div id="statusBadgeContainer" class="hidden flex justify-center mt-2 mb-2">
             <span id="statusBadgeText" class="px-6 py-2 rounded-full text-sm font-bold shadow-sm border transition-colors"></span>
         </div>
 
-        <!-- Section: กราฟสถิติ -->
         <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 transition-colors">
             <h2 class="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">📈 กราฟแสดงอัตราการชนะ (Win Rate)</h2>
             <div class="relative w-full h-64 md:h-80">
@@ -110,7 +95,6 @@
             </div>
         </div>
 
-        <!-- Section: ตาราง Leaderboard หลัก -->
         <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
             <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
                 <h2 class="text-xl font-semibold text-slate-800 dark:text-slate-100">📊 สถิติผู้เล่นรายบุคคล (Individual Leaderboard)</h2>
@@ -125,7 +109,6 @@
                             <th class="py-3 px-4 text-center font-medium text-emerald-600 dark:text-emerald-400">ชนะ</th>
                             <th class="py-3 px-4 text-center font-medium text-rose-600 dark:text-rose-400">แพ้</th>
                             <th class="py-3 px-4 text-center font-medium text-indigo-600 dark:text-indigo-400">Win Rate</th>
-                            <!-- คอลัมน์ King -->
                             <th class="py-3 px-4 text-center font-medium border-l border-slate-200 dark:border-slate-600" title="จำนวนสัปดาห์ที่ลงเล่น">เล่น(วีค)</th>
                             <th class="py-3 px-4 text-center font-medium text-yellow-600 dark:text-yellow-400" title="จำนวนครั้งที่ได้ที่ 1 ของสัปดาห์">👑 King</th>
                             <th class="py-3 px-4 text-center font-medium text-slate-500 dark:text-slate-400" title="เปอร์เซ็นต์การได้ King ต่อสัปดาห์ที่ลงเล่น">% King</th>
@@ -139,7 +122,6 @@
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <!-- Section: ตารางสถิติแบบคู่ -->
             <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
                 <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-900/20">
                     <h2 class="text-xl font-semibold text-emerald-800 dark:text-emerald-400">🤝 สถิติการจับคู่ (Pair Win Rate)</h2>
@@ -162,7 +144,6 @@
                 </div>
             </div>
 
-            <!-- Section: ตาราง H2H แบบเดี่ยว -->
             <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
                 <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-rose-50/50 dark:bg-rose-900/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
@@ -195,7 +176,6 @@
             </div>
         </div>
 
-        <!-- Section: ประวัติรายสัปดาห์ (Weekly Breakdown) -->
         <div id="weeklySection" class="hidden space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700 mt-8">
             <div class="flex items-center gap-2 mb-2">
                 <span class="text-2xl">📅</span>
@@ -204,8 +184,7 @@
             <p class="text-slate-500 dark:text-slate-400 text-sm mb-4">คลิก "ดูสถิติเฉพาะวีคนี้" เพื่อให้ระบบไฮไลต์และแสดงผลรวมเฉพาะแมตช์ในสัปดาห์นั้นๆ ด้านบน</p>
             
             <div id="weeklyContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <!-- ข้อมูลรายสัปดาห์จะถูกสร้างที่นี่ -->
-            </div>
+                </div>
         </div>
 
     </div>
@@ -239,40 +218,98 @@
             updateChartTheme(); 
         }
 
+        // --- ระบบสร้างลิงก์แบบรวมข้อมูล (ไม่ต้องพึ่ง API ภายนอก) ---
         function generateShareLink() {
             const inputText = document.getElementById('urlInput').value.trim();
             if (!inputText) {
                 showStatus('กรุณาวางลิงก์ผลการแข่งขันก่อนสร้างลิงก์แชร์', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
                 return;
             }
+            
             try {
-                const compressedData = LZString.compressToEncodedURIComponent(inputText);
+                const lines = inputText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+                let allWeeksData = [];
+                
+                // หา Base URL ของเว็บตารางต้นฉบับ เพื่อเก็บไว้ให้ปุ่ม "ดูตาราง"
+                let scheduleBaseUrl = "";
+                const firstUrlMatch = inputText.match(/(https?:\/\/[^\s\?]+)/);
+                if (firstUrlMatch) {
+                    scheduleBaseUrl = firstUrlMatch[1];
+                }
+
+                lines.forEach(line => {
+                    let mParam = line;
+                    if (line.includes('m=')) {
+                        const urlStr = line.startsWith('http') ? line : 'http://dummy.com/' + (line.startsWith('?') ? line : '?' + line);
+                        mParam = new URL(urlStr).searchParams.get('m') || line.split('m=')[1].split('&')[0];
+                    }
+                    const decodedStr = LZString.decompressFromEncodedURIComponent(mParam);
+                    if (decodedStr) {
+                        allWeeksData.push(JSON.parse(decodedStr));
+                    }
+                });
+
+                if (allWeeksData.length === 0) throw new Error("No valid data");
+
+                // ห่อข้อมูลรวมเป็นก้อนเดียว แล้วบีบอัด LZString ซ้ำ (วิธีนี้ช่วยลดความยาวลิงก์มหาศาล)
+                const masterObj = { b: scheduleBaseUrl, d: allWeeksData };
+                const masterCompressed = LZString.compressToEncodedURIComponent(JSON.stringify(masterObj));
+                
                 const baseUrl = window.location.origin + window.location.pathname;
-                const shareUrl = `${baseUrl}?data=${compressedData}`;
+                const shareUrl = `${baseUrl}?league=${masterCompressed}`;
+
                 navigator.clipboard.writeText(shareUrl).then(() => {
-                    showStatus('คัดลอกลิงก์รวมสำหรับแชร์เรียบร้อยแล้ว!', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400');
+                    showStatus('✅ คัดลอกลิงก์รวมสำหรับแชร์เรียบร้อยแล้ว!', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400');
                 }).catch(err => {
                     console.error('ไม่สามารถคัดลอกได้', err);
                     showStatus('อุปกรณ์ไม่รองรับการคัดลอกอัตโนมัติ', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
                 });
+
             } catch (e) {
-                showStatus('เกิดข้อผิดพลาดในการสร้างลิงก์', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
+                showStatus('เกิดข้อผิดพลาดในการสร้างลิงก์ กรุณาตรวจสอบลิงก์ที่วาง', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
             }
         }
 
         function checkSharedDataOnInit() {
             const params = new URLSearchParams(window.location.search);
-            const sharedData = params.get('data');
-            if (sharedData) {
+            
+            // รองรับทั้งลิงก์โครงสร้างใหม่ (?league=) และเก่า (?data=)
+            const leagueData = params.get('league');
+            const legacyData = params.get('data');
+
+            if (leagueData) {
                 try {
-                    const decompressed = LZString.decompressFromEncodedURIComponent(sharedData);
+                    const decompressed = LZString.decompressFromEncodedURIComponent(leagueData);
+                    if (decompressed) {
+                        const masterObj = JSON.parse(decompressed);
+                        const scheduleBaseUrl = masterObj.b || "";
+                        const allWeeksData = masterObj.d || masterObj; 
+
+                        // แยกข้อมูลกลับมาเป็น URL ย่อยทีละบรรทัด คืนลงในช่อง Textarea
+                        let reconstructedText = "";
+                        allWeeksData.forEach(weekData => {
+                            const weekCompressed = LZString.compressToEncodedURIComponent(JSON.stringify(weekData));
+                            const fullUrl = scheduleBaseUrl ? (scheduleBaseUrl + (scheduleBaseUrl.includes('?') ? '&m=' : '?m=') + weekCompressed) : weekCompressed;
+                            reconstructedText += fullUrl + "\n";
+                        });
+
+                        document.getElementById('urlInput').value = reconstructedText.trim();
+                        processLinks(-1); 
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                } catch (e) {
+                    console.error("ไม่สามารถถอดรหัสข้อมูลลีคได้", e);
+                }
+            } else if (legacyData) {
+                try {
+                    const decompressed = LZString.decompressFromEncodedURIComponent(legacyData);
                     if (decompressed) {
                         document.getElementById('urlInput').value = decompressed;
                         processLinks(-1); 
                         window.history.replaceState({}, document.title, window.location.pathname);
                     }
                 } catch (e) {
-                    console.error("ไม่สามารถถอดรหัสข้อมูลแชร์ได้", e);
+                    console.error("ไม่สามารถถอดรหัสข้อมูลแชร์แบบเก่าได้", e);
                 }
             }
         }
@@ -281,7 +318,6 @@
             initDarkMode();
             checkSharedDataOnInit();
         });
-
 
         // --- ระบบคำนวณและแสดงผล ---
         function processLinks(selectedIndex = -1) {
@@ -295,7 +331,6 @@
 
             let allParsedData = [];
 
-            // 1. ถอดรหัสทุกลิงก์
             lines.forEach((line, index) => {
                 try {
                     let mParam = line;
@@ -325,7 +360,6 @@
             let pairStats = {};
             globalH2HStats = {}; 
 
-            // 2. กำหนดข้อมูลที่ต้องการคำนวณ (รวม หรือ เฉพาะวีค)
             const dataToProcess = selectedIndex === -1 ? allParsedData : [allParsedData[selectedIndex]];
 
             const getPairKey = (pNames, teamIndexes) => {
@@ -339,7 +373,6 @@
                 if (!globalH2HStats[p1][p2]) globalH2HStats[p1][p2] = { oppName: p2, matches: 0, w: 0, l: 0, pf: 0, pa: 0 };
             };
 
-            // 3. เริ่มคำนวณ โดยในแต่ละสัปดาห์ จะประมวลผลหา King และสัปดาห์ที่ลงเล่นด้วย
             dataToProcess.forEach(data => {
                 let weeklyPlayerStats = {}; 
                 const pNames = data.pNames;
@@ -446,13 +479,11 @@
                 }
             });
 
-            // 4. เรนเดอร์กราฟและตาราง
             let sortedStatsArr = renderIndividualTable(playerStats);
             renderChart(sortedStatsArr); 
             renderPairTable(pairStats);
             populateH2HDropdown(); 
             
-            // 5. อัปเดตป้ายสถานะ (Status Badge)
             const badgeContainer = document.getElementById('statusBadgeContainer');
             const badgeText = document.getElementById('statusBadgeText');
             badgeContainer.classList.remove('hidden');
@@ -465,7 +496,6 @@
                 badgeText.className = 'px-6 py-2 rounded-full text-sm font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 shadow-sm border border-indigo-200 dark:border-indigo-800 transition-colors';
             }
             
-            // 6. เรนเดอร์กล่องรายสัปดาห์
             renderWeeklyBreakdown(allParsedData, selectedIndex);
             document.getElementById('weeklySection').classList.remove('hidden');
 
