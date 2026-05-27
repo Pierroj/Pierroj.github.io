@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pickleball League Dashboard</title>
+    <!-- โหลด Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- โหลด LZ-String -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <!-- โหลด Chart.js สำหรับสร้างกราฟ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- ตั้งค่า Tailwind ให้รองรับ Dark Mode -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+    </script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap');
+        body { font-family: 'Kanit', sans-serif; }
+
+        /* ตกแต่ง Scrollbar ให้สวยงาม (Custom Scrollbar) */
+        .custom-scrollbar::-webkit-scrollbar {
+            height: 8px; 
+            width: 8px;  
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+            border-radius: 4px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-track {
+            background: #1e293b; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #475569; 
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #64748b; 
+        }
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 min-h-screen p-4 md:p-8 transition-colors duration-200">
+
+    <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header & Dark Mode Toggle (แก้ไขส่วนนี้ใหม่ให้ไม่ทับกัน) -->
+        <div class="flex flex-col md:flex-row items-center justify-between gap-4 mb-8">
+            
+            <!-- Spacer เพื่อให้ข้อความตรงกลางสมดุล (แสดงเฉพาะจอใหญ่) -->
+            <div class="hidden md:block md:w-1/4"></div>
+            
+            <!-- ข้อความ Header (อยู่ตรงกลาง) -->
+            <div class="text-center w-full md:w-2/4 space-y-2">
+                <h1 class="text-3xl sm:text-4xl font-bold text-indigo-700 dark:text-indigo-400 tracking-tight">🏆 Pickleball League Stats</h1>
+            </div>
+
+            <!-- Toggle Bar (Dark Mode) -->
+            <div class="w-full md:w-1/4 flex justify-center md:justify-end items-center gap-2">
+                <span class="text-lg opacity-80">☀️</span>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="darkModeToggle" class="sr-only peer" onchange="toggleDarkMode()">
+                    <div class="w-12 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600 shadow-inner"></div>
+                </label>
+                <span class="text-lg opacity-80">🌙</span>
+            </div>
+        </div>
+
+        <!-- Section: นำเข้าข้อมูล -->
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 transition-colors">
+            <div class="flex items-center space-x-2 mb-4">
+                <span class="text-2xl">📥</span>
+                <h2 class="text-xl font-semibold text-slate-800 dark:text-slate-100">นำเข้าผลการแข่งขัน</h2>
+            </div>
+            <textarea id="urlInput" rows="4" class="w-full p-4 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-none font-mono text-sm resize-y custom-scrollbar text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 transition-colors" placeholder="วางลิงก์ที่มี ?m=... ลงที่นี่ (1 ลิงก์ต่อ 1 บรรทัด)"></textarea>
+            
+            <div class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                    <button onclick="processLinks(-1)" class="w-full sm:w-auto px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition shadow-sm">
+                        ⚡ คำนวณสถิติทั้งหมด
+                    </button>
+                    <!-- ปุ่มสำหรับสร้างลิงก์แชร์ -->
+                    <button onclick="generateShareLink()" class="w-full sm:w-auto px-6 py-3 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                        <span>🔗</span> คัดลอกลิงก์แชร์ (รวมทุกวีค)
+                    </button>
+                </div>
+                <div id="statusAlert" class="hidden px-4 py-2 rounded-lg text-sm font-medium text-center sm:text-right w-full sm:w-auto transition-all"></div>
+            </div>
+        </div>
+
+        <!-- Badge แสดงสถานะการดูข้อมูลปัจจุบัน -->
+        <div id="statusBadgeContainer" class="hidden flex justify-center mt-2 mb-2">
+            <span id="statusBadgeText" class="px-6 py-2 rounded-full text-sm font-bold shadow-sm border transition-colors"></span>
+        </div>
+
+        <!-- Section: กราฟสถิติ -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 transition-colors">
+            <h2 class="text-xl font-semibold text-slate-800 dark:text-slate-100 mb-4">📈 กราฟแสดงอัตราการชนะ (Win Rate)</h2>
+            <div class="relative w-full h-64 md:h-80">
+                <canvas id="winRateChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Section: ตาราง Leaderboard หลัก -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
+            <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
+                <h2 class="text-xl font-semibold text-slate-800 dark:text-slate-100">📊 สถิติผู้เล่นรายบุคคล (Individual Leaderboard)</h2>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left whitespace-nowrap">
+                    <thead>
+                        <tr class="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 text-sm border-b border-slate-200 dark:border-slate-600 transition-colors">
+                            <th class="py-3 px-4 text-center font-medium">อันดับ</th>
+                            <th class="py-3 px-4 font-medium">ชื่อผู้เล่น</th>
+                            <th class="py-3 px-4 text-center font-medium" title="จำนวนแมตช์ที่ลงเล่น">แมตช์</th>
+                            <th class="py-3 px-4 text-center font-medium text-emerald-600 dark:text-emerald-400">ชนะ</th>
+                            <th class="py-3 px-4 text-center font-medium text-rose-600 dark:text-rose-400">แพ้</th>
+                            <th class="py-3 px-4 text-center font-medium text-indigo-600 dark:text-indigo-400">Win Rate</th>
+                            <!-- คอลัมน์ King -->
+                            <th class="py-3 px-4 text-center font-medium border-l border-slate-200 dark:border-slate-600" title="จำนวนสัปดาห์ที่ลงเล่น">เล่น(วีค)</th>
+                            <th class="py-3 px-4 text-center font-medium text-yellow-600 dark:text-yellow-400" title="จำนวนครั้งที่ได้ที่ 1 ของสัปดาห์">👑 King</th>
+                            <th class="py-3 px-4 text-center font-medium text-slate-500 dark:text-slate-400" title="เปอร์เซ็นต์การได้ King ต่อสัปดาห์ที่ลงเล่น">% King</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboardBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                        <tr><td colspan="9" class="py-8 text-center text-slate-400 dark:text-slate-500">ยังไม่มีข้อมูล</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Section: ตารางสถิติแบบคู่ -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
+                <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-emerald-50/50 dark:bg-emerald-900/20">
+                    <h2 class="text-xl font-semibold text-emerald-800 dark:text-emerald-400">🤝 สถิติการจับคู่ (Pair Win Rate)</h2>
+                    <p class="text-xs text-emerald-600 dark:text-emerald-500 mt-1">สถิติเมื่ออยู่ทีมเดียวกัน</p>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar h-[400px]">
+                    <table class="w-full text-left whitespace-nowrap">
+                        <thead class="sticky top-0 bg-slate-100 dark:bg-slate-700 shadow-sm transition-colors z-10">
+                            <tr class="text-slate-600 dark:text-slate-300 text-sm">
+                                <th class="py-3 px-4 font-medium">รายชื่อคู่หู</th>
+                                <th class="py-3 px-4 text-center font-medium">แข่ง</th>
+                                <th class="py-3 px-4 text-center font-medium text-emerald-600 dark:text-emerald-400">W-L</th>
+                                <th class="py-3 px-4 text-center font-medium text-indigo-600 dark:text-indigo-400">Win Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pairStatsBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                            <tr><td colspan="4" class="py-8 text-center text-slate-400 dark:text-slate-500">ยังไม่มีข้อมูล</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Section: ตาราง H2H แบบเดี่ยว -->
+            <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden transition-colors">
+                <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-rose-50/50 dark:bg-rose-900/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-xl font-semibold text-rose-800 dark:text-rose-400">⚔️ Head-to-Head (รายคน)</h2>
+                        <p class="text-xs text-rose-600 dark:text-rose-500 mt-1">สถิติเมื่ออยู่ทีมตรงข้ามกัน</p>
+                    </div>
+                    <select id="h2hPlayerSelect" onchange="renderH2HTable()" class="p-2 border border-rose-200 dark:border-rose-800 rounded-lg bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium text-sm transition-colors custom-scrollbar">
+                        <option value="">-- เลือกผู้เล่น --</option>
+                    </select>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar h-[400px]">
+                    <table class="w-full text-left whitespace-nowrap">
+                        <thead class="sticky top-0 bg-slate-100 dark:bg-slate-700 shadow-sm transition-colors z-10">
+                            <tr class="text-slate-600 dark:text-slate-300 text-sm">
+                                <th class="py-3 px-4 font-medium text-rose-700 dark:text-rose-400">คู่แข่ง (Opponent)</th>
+                                <th class="py-3 px-4 text-center font-medium">แข่ง</th>
+                                <th class="py-3 px-4 text-center font-medium text-emerald-600 dark:text-emerald-400">W</th>
+                                <th class="py-3 px-4 text-center font-medium text-rose-500 dark:text-rose-400">L</th>
+                                <th class="py-3 px-4 text-center font-medium text-indigo-600 dark:text-indigo-400">Win Rate</th>
+                                <th class="py-3 px-4 text-center font-medium text-slate-500 dark:text-slate-400">ได้</th>
+                                <th class="py-3 px-4 text-center font-medium text-slate-500 dark:text-slate-400">เสีย</th>
+                                <th class="py-3 px-4 text-center font-medium text-slate-700 dark:text-slate-300">+/-</th>
+                            </tr>
+                        </thead>
+                        <tbody id="h2hBody" class="divide-y divide-slate-100 dark:divide-slate-700">
+                            <tr><td colspan="8" class="py-8 text-center text-slate-400 dark:text-slate-500">ยังไม่มีข้อมูล</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Section: ประวัติรายสัปดาห์ (Weekly Breakdown) -->
+        <div id="weeklySection" class="hidden space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700 mt-8">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="text-2xl">📅</span>
+                <h2 class="text-2xl font-bold text-slate-800 dark:text-slate-100">ผลการแข่งขันรายสัปดาห์</h2>
+            </div>
+            <p class="text-slate-500 dark:text-slate-400 text-sm mb-4">คลิก "ดูสถิติเฉพาะวีคนี้" เพื่อให้ระบบไฮไลต์และแสดงผลรวมเฉพาะแมตช์ในสัปดาห์นั้นๆ ด้านบน</p>
+            
+            <div id="weeklyContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- ข้อมูลรายสัปดาห์จะถูกสร้างที่นี่ -->
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let myChartInstance = null; 
+        let globalH2HStats = {}; 
+
+        // --- จัดการ Dark Mode Toggle Bar ---
+        function initDarkMode() {
+            const toggle = document.getElementById('darkModeToggle');
+            if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                toggle.checked = true;
+            } else {
+                document.documentElement.classList.remove('dark');
+                toggle.checked = false;
+            }
+            updateChartTheme(); 
+        }
+        
+        function toggleDarkMode() {
+            const toggle = document.getElementById('darkModeToggle');
+            if (toggle.checked) {
+                document.documentElement.classList.add('dark');
+                localStorage.theme = 'dark';
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.theme = 'light';
+            }
+            updateChartTheme(); 
+        }
+
+        function generateShareLink() {
+            const inputText = document.getElementById('urlInput').value.trim();
+            if (!inputText) {
+                showStatus('กรุณาวางลิงก์ผลการแข่งขันก่อนสร้างลิงก์แชร์', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
+                return;
+            }
+            try {
+                const compressedData = LZString.compressToEncodedURIComponent(inputText);
+                const baseUrl = window.location.origin + window.location.pathname;
+                const shareUrl = `${baseUrl}?data=${compressedData}`;
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    showStatus('คัดลอกลิงก์รวมสำหรับแชร์เรียบร้อยแล้ว!', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400');
+                }).catch(err => {
+                    console.error('ไม่สามารถคัดลอกได้', err);
+                    showStatus('อุปกรณ์ไม่รองรับการคัดลอกอัตโนมัติ', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
+                });
+            } catch (e) {
+                showStatus('เกิดข้อผิดพลาดในการสร้างลิงก์', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
+            }
+        }
+
+        function checkSharedDataOnInit() {
+            const params = new URLSearchParams(window.location.search);
+            const sharedData = params.get('data');
+            if (sharedData) {
+                try {
+                    const decompressed = LZString.decompressFromEncodedURIComponent(sharedData);
+                    if (decompressed) {
+                        document.getElementById('urlInput').value = decompressed;
+                        processLinks(-1); 
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                } catch (e) {
+                    console.error("ไม่สามารถถอดรหัสข้อมูลแชร์ได้", e);
+                }
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initDarkMode();
+            checkSharedDataOnInit();
+        });
+
+
+        // --- ระบบคำนวณและแสดงผล ---
+        function processLinks(selectedIndex = -1) {
+            const inputText = document.getElementById('urlInput').value.trim();
+            const lines = inputText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+            if (lines.length === 0) {
+                showStatus('กรุณาวางลิงก์อย่างน้อย 1 รายการ', 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-400');
+                return;
+            }
+
+            let allParsedData = [];
+
+            // 1. ถอดรหัสทุกลิงก์
+            lines.forEach((line, index) => {
+                try {
+                    let mParam = line;
+                    if (line.includes('m=')) {
+                        const urlStr = line.startsWith('http') ? line : 'http://dummy.com/' + (line.startsWith('?') ? line : '?' + line);
+                        mParam = new URL(urlStr).searchParams.get('m') || line.split('m=')[1].split('&')[0];
+                    }
+
+                    const decodedStr = LZString.decompressFromEncodedURIComponent(mParam);
+                    if (!decodedStr) throw new Error("Decompression Failed");
+
+                    const shareData = JSON.parse(decodedStr);
+                    allParsedData.push({
+                        originalLine: line,
+                        pNames: shareData[0],
+                        mShrink: shareData[2],
+                        weekIndex: index
+                    });
+                } catch (error) {
+                    console.error("เกิดข้อผิดพลาดกับลิงก์บรรทัดที่ " + (index + 1), error);
+                }
+            });
+
+            if (allParsedData.length === 0) return;
+
+            let playerStats = {}; 
+            let pairStats = {};
+            globalH2HStats = {}; 
+
+            // 2. กำหนดข้อมูลที่ต้องการคำนวณ (รวม หรือ เฉพาะวีค)
+            const dataToProcess = selectedIndex === -1 ? allParsedData : [allParsedData[selectedIndex]];
+
+            const getPairKey = (pNames, teamIndexes) => {
+                if (teamIndexes.length !== 2) return null;
+                const names = teamIndexes.map(idx => pNames[idx]).filter(Boolean).sort();
+                return names.length === 2 ? names.join(' & ') : null;
+            };
+
+            const initH2H = (p1, p2) => {
+                if (!globalH2HStats[p1]) globalH2HStats[p1] = {};
+                if (!globalH2HStats[p1][p2]) globalH2HStats[p1][p2] = { oppName: p2, matches: 0, w: 0, l: 0, pf: 0, pa: 0 };
+            };
+
+            // 3. เริ่มคำนวณ โดยในแต่ละสัปดาห์ จะประมวลผลหา King และสัปดาห์ที่ลงเล่นด้วย
+            dataToProcess.forEach(data => {
+                let weeklyPlayerStats = {}; 
+                const pNames = data.pNames;
+                const mShrink = data.mShrink;
+
+                pNames.forEach(name => {
+                    if (name && !playerStats[name]) playerStats[name] = { name: name, matches: 0, w: 0, l: 0, kingCount: 0, weeksPlayed: 0 };
+                    if (name && !weeklyPlayerStats[name]) weeklyPlayerStats[name] = { name: name, matches: 0, w: 0, l: 0 };
+                });
+
+                mShrink.forEach(match => {
+                    const isFinished = match[6];
+                    if (!isFinished) return; 
+
+                    const homeTeam = match[1];
+                    const awayTeam = match[2];
+                    const hScore = Number(match[4]) || 0;
+                    const aScore = Number(match[5]) || 0;
+                    const homeWon = hScore > aScore;
+                    const awayWon = aScore > hScore;
+
+                    homeTeam.forEach(idx => {
+                        const pName = pNames[idx];
+                        if (pName) {
+                            if (playerStats[pName]) {
+                                playerStats[pName].matches++;
+                                if (homeWon) playerStats[pName].w++; else if (awayWon) playerStats[pName].l++;
+                            }
+                            if (weeklyPlayerStats[pName]) {
+                                weeklyPlayerStats[pName].matches++;
+                                if (homeWon) weeklyPlayerStats[pName].w++; else if (awayWon) weeklyPlayerStats[pName].l++;
+                            }
+                        }
+                    });
+                    awayTeam.forEach(idx => {
+                        const pName = pNames[idx];
+                        if (pName) {
+                            if (playerStats[pName]) {
+                                playerStats[pName].matches++;
+                                if (awayWon) playerStats[pName].w++; else if (homeWon) playerStats[pName].l++;
+                            }
+                            if (weeklyPlayerStats[pName]) {
+                                weeklyPlayerStats[pName].matches++;
+                                if (awayWon) weeklyPlayerStats[pName].w++; else if (homeWon) weeklyPlayerStats[pName].l++;
+                            }
+                        }
+                    });
+
+                    const homePairKey = getPairKey(pNames, homeTeam);
+                    const awayPairKey = getPairKey(pNames, awayTeam);
+
+                    if (homePairKey) {
+                        if (!pairStats[homePairKey]) pairStats[homePairKey] = { name: homePairKey, matches: 0, w: 0, l: 0 };
+                        pairStats[homePairKey].matches++;
+                        if (homeWon) pairStats[homePairKey].w++; else if (awayWon) pairStats[homePairKey].l++;
+                    }
+                    if (awayPairKey) {
+                        if (!pairStats[awayPairKey]) pairStats[awayPairKey] = { name: awayPairKey, matches: 0, w: 0, l: 0 };
+                        pairStats[awayPairKey].matches++;
+                        if (awayWon) pairStats[awayPairKey].w++; else if (homeWon) pairStats[awayPairKey].l++;
+                    }
+
+                    homeTeam.forEach(hIdx => {
+                        const hName = pNames[hIdx];
+                        awayTeam.forEach(aIdx => {
+                            const aName = pNames[aIdx];
+                            if (hName && aName) {
+                                initH2H(hName, aName);
+                                initH2H(aName, hName);
+                                globalH2HStats[hName][aName].matches++;
+                                globalH2HStats[hName][aName].pf += hScore;
+                                globalH2HStats[hName][aName].pa += aScore;
+                                if (homeWon) globalH2HStats[hName][aName].w++; else if (awayWon) globalH2HStats[hName][aName].l++;
+
+                                globalH2HStats[aName][hName].matches++;
+                                globalH2HStats[aName][hName].pf += aScore;
+                                globalH2HStats[aName][hName].pa += hScore;
+                                if (awayWon) globalH2HStats[aName][hName].w++; else if (homeWon) globalH2HStats[aName][hName].l++;
+                            }
+                        });
+                    });
+                });
+
+                let weeklyStatsArr = Object.values(weeklyPlayerStats).filter(p => p.matches > 0);
+                if (weeklyStatsArr.length > 0) {
+                    weeklyStatsArr.forEach(p => {
+                        playerStats[p.name].weeksPlayed++; 
+                        p.winRate = (p.w / p.matches) * 100;
+                    });
+
+                    weeklyStatsArr.sort((a, b) => {
+                        if (b.winRate !== a.winRate) return b.winRate - a.winRate;
+                        if (b.w !== a.w) return b.w - a.w;
+                        return b.matches - a.matches;
+                    });
+
+                    let topWinRate = weeklyStatsArr[0].winRate;
+                    let topWins = weeklyStatsArr[0].w;
+                    weeklyStatsArr.forEach(p => {
+                        if (p.winRate === topWinRate && p.w === topWins) {
+                            playerStats[p.name].kingCount++; 
+                        }
+                    });
+                }
+            });
+
+            // 4. เรนเดอร์กราฟและตาราง
+            let sortedStatsArr = renderIndividualTable(playerStats);
+            renderChart(sortedStatsArr); 
+            renderPairTable(pairStats);
+            populateH2HDropdown(); 
+            
+            // 5. อัปเดตป้ายสถานะ (Status Badge)
+            const badgeContainer = document.getElementById('statusBadgeContainer');
+            const badgeText = document.getElementById('statusBadgeText');
+            badgeContainer.classList.remove('hidden');
+
+            if (selectedIndex === -1) {
+                badgeText.innerText = '🎯 กำลังแสดง: สถิติรวมทุกสัปดาห์';
+                badgeText.className = 'px-6 py-2 rounded-full text-sm font-bold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400 shadow-sm border border-emerald-200 dark:border-emerald-800 transition-colors';
+            } else {
+                badgeText.innerText = `🔍 กำลังแสดง: สถิติเฉพาะสัปดาห์ที่ ${selectedIndex + 1}`;
+                badgeText.className = 'px-6 py-2 rounded-full text-sm font-bold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 shadow-sm border border-indigo-200 dark:border-indigo-800 transition-colors';
+            }
+            
+            // 6. เรนเดอร์กล่องรายสัปดาห์
+            renderWeeklyBreakdown(allParsedData, selectedIndex);
+            document.getElementById('weeklySection').classList.remove('hidden');
+
+            if (selectedIndex !== -1) {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        function showStatus(msg, classes) {
+            const alert = document.getElementById('statusAlert');
+            alert.className = `px-4 py-2 rounded-lg text-sm font-medium transition-all ${classes}`;
+            alert.innerText = msg;
+            alert.classList.remove('hidden');
+            setTimeout(() => alert.classList.add('hidden'), 5000);
+        }
+
+        // --- Render Functions ---
+        function renderIndividualTable(statsDict) {
+            let statsArr = Object.values(statsDict).filter(p => p.matches > 0);
+            
+            statsArr.forEach(p => {
+                p.winRate = (p.w / p.matches) * 100;
+                p.kingRate = p.weeksPlayed > 0 ? (p.kingCount / p.weeksPlayed) * 100 : 0;
+            });
+            
+            statsArr.sort((a, b) => { 
+                if (b.winRate !== a.winRate) return b.winRate - a.winRate; 
+                if (b.w !== a.w) return b.w - a.w; 
+                if (b.kingRate !== a.kingRate) return b.kingRate - a.kingRate;
+                return b.kingCount - a.kingCount;
+            });
+
+            const tbody = document.getElementById('leaderboardBody');
+            tbody.innerHTML = '';
+
+            if (statsArr.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="9" class="py-8 text-center text-slate-400 dark:text-slate-500">ไม่มีข้อมูล หรือการแข่งขันยังไม่จบ</td></tr>';
+                return statsArr;
+            }
+
+            statsArr.forEach((p, index) => {
+                const rankBadge = index < 3 
+                    ? ['🥇','🥈','🥉'][index] 
+                    : `<span class="text-slate-500 dark:text-slate-400 font-bold">${index + 1}</span>`;
+
+                const row = `
+                    <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <td class="py-3 px-4 text-center text-lg">${rankBadge}</td>
+                        <td class="py-3 px-4 font-semibold text-slate-800 dark:text-slate-200">${p.name}</td>
+                        <td class="py-3 px-4 text-center text-slate-600 dark:text-slate-400">${p.matches}</td>
+                        <td class="py-3 px-4 text-center font-medium text-emerald-600 dark:text-emerald-400">${p.w}</td>
+                        <td class="py-3 px-4 text-center font-medium text-rose-500 dark:text-rose-400">${p.l}</td>
+                        <td class="py-3 px-4 text-center font-bold text-indigo-600 dark:text-indigo-400">${p.winRate.toFixed(1)}%</td>
+                        <td class="py-3 px-4 text-center text-slate-500 dark:text-slate-400 border-l border-slate-100 dark:border-slate-700">${p.weeksPlayed}</td>
+                        <td class="py-3 px-4 text-center font-bold text-yellow-500 dark:text-yellow-400">${p.kingCount}</td>
+                        <td class="py-3 px-4 text-center font-medium text-slate-500 dark:text-slate-400">${p.kingRate.toFixed(1)}%</td>
+                    </tr>
+                `;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+            return statsArr;
+        }
+
+        function renderChart(statsArr) {
+            const ctx = document.getElementById('winRateChart').getContext('2d');
+            const labels = statsArr.map(p => p.name);
+            const dataWinRate = statsArr.map(p => p.winRate.toFixed(1));
+
+            const isDark = document.documentElement.classList.contains('dark');
+            const textColor = isDark ? '#cbd5e1' : '#475569'; 
+            const gridColor = isDark ? '#334155' : '#e2e8f0'; 
+
+            if (myChartInstance) myChartInstance.destroy();
+
+            myChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Win Rate (%)',
+                        data: dataWinRate,
+                        backgroundColor: 'rgba(79, 70, 229, 0.85)', 
+                        borderColor: 'rgb(67, 56, 202)', 
+                        borderWidth: 1,
+                        borderRadius: 6 
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: function(context) { return ` Win Rate: ${context.parsed.y}%`; } } }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, ticks: { color: textColor, callback: function(value) { return value + '%' } }, grid: { color: gridColor } },
+                        x: { ticks: { color: textColor, font: { family: "'Kanit', sans-serif" } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function updateChartTheme() {
+            if (myChartInstance) {
+                const isDark = document.documentElement.classList.contains('dark');
+                const textColor = isDark ? '#cbd5e1' : '#475569';
+                const gridColor = isDark ? '#334155' : '#e2e8f0';
+                myChartInstance.options.scales.x.ticks.color = textColor;
+                myChartInstance.options.scales.y.ticks.color = textColor;
+                myChartInstance.options.scales.y.grid.color = gridColor;
+                myChartInstance.update();
+            }
+        }
+
+        function renderPairTable(pairDict) {
+            let pairArr = Object.values(pairDict).filter(p => p.matches > 0);
+            pairArr.forEach(p => p.winRate = (p.w / p.matches) * 100);
+            pairArr.sort((a, b) => { if (b.winRate !== a.winRate) return b.winRate - a.winRate; if (b.w !== a.w) return b.w - a.w; return b.matches - a.matches; });
+
+            const tbody = document.getElementById('pairStatsBody');
+            tbody.innerHTML = '';
+            
+            if (pairArr.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="py-8 text-center text-slate-400 dark:text-slate-500">ไม่มีข้อมูล</td></tr>';
+                return;
+            }
+
+            pairArr.forEach(p => {
+                const row = `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"><td class="py-3 px-4 font-semibold text-slate-700 dark:text-slate-200">${p.name}</td><td class="py-3 px-4 text-center text-slate-600 dark:text-slate-400">${p.matches}</td><td class="py-3 px-4 text-center text-sm font-medium"><span class="text-emerald-600 dark:text-emerald-400">${p.w}</span> - <span class="text-rose-500 dark:text-rose-400">${p.l}</span></td><td class="py-3 px-4 text-center font-bold text-indigo-600 dark:text-indigo-400">${p.winRate.toFixed(1)}%</td></tr>`;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        function populateH2HDropdown() {
+            const select = document.getElementById('h2hPlayerSelect');
+            select.innerHTML = '';
+            const players = Object.keys(globalH2HStats).sort();
+            if (players.length === 0) {
+                select.innerHTML = '<option value="">ไม่มีข้อมูล</option>';
+                document.getElementById('h2hBody').innerHTML = '<tr><td colspan="8" class="py-8 text-center text-slate-400 dark:text-slate-500">ยังไม่มีข้อมูล</td></tr>';
+                return;
+            }
+            players.forEach(p => select.insertAdjacentHTML('beforeend', `<option value="${p}">${p}</option>`));
+            select.value = players[0]; 
+            renderH2HTable(); 
+        }
+
+        function renderH2HTable() {
+            const select = document.getElementById('h2hPlayerSelect');
+            const targetPlayer = select.value;
+            const tbody = document.getElementById('h2hBody');
+            if (!targetPlayer || !globalH2HStats[targetPlayer]) return;
+
+            let opps = Object.values(globalH2HStats[targetPlayer]);
+            opps.forEach(opp => { opp.winRate = (opp.w / opp.matches) * 100; opp.diff = opp.pf - opp.pa; });
+            opps.sort((a, b) => { if (b.winRate !== a.winRate) return b.winRate - a.winRate; if (b.w !== a.w) return b.w - a.w; return b.diff - a.diff; });
+
+            tbody.innerHTML = '';
+            opps.forEach(opp => {
+                const diffColor = opp.diff > 0 ? 'text-emerald-500 dark:text-emerald-400' : (opp.diff < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500');
+                const row = `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors border-b border-slate-50 dark:border-slate-700/50 last:border-0"><td class="py-3 px-4 font-semibold text-rose-700 dark:text-rose-400">${opp.oppName}</td><td class="py-3 px-4 text-center text-slate-600 dark:text-slate-400">${opp.matches}</td><td class="py-3 px-4 text-center font-medium text-emerald-600 dark:text-emerald-400">${opp.w}</td><td class="py-3 px-4 text-center font-medium text-rose-500 dark:text-rose-400">${opp.l}</td><td class="py-3 px-4 text-center font-bold text-indigo-600 dark:text-indigo-400">${opp.winRate.toFixed(1)}%</td><td class="py-3 px-4 text-center text-slate-500 dark:text-slate-400">${opp.pf}</td><td class="py-3 px-4 text-center text-slate-500 dark:text-slate-400">${opp.pa}</td><td class="py-3 px-4 text-center font-medium ${diffColor}">${opp.diff > 0 ? '+' : ''}${opp.diff}</td></tr>`;
+                tbody.insertAdjacentHTML('beforeend', row);
+            });
+        }
+
+        // --- เรนเดอร์ประวัติการแข่งขันรายสัปดาห์ ---
+        function renderWeeklyBreakdown(allData, selectedIndex) {
+            const container = document.getElementById('weeklyContainer');
+            container.innerHTML = '';
+
+            allData.forEach((week) => {
+                let matchesHtml = '';
+                let matchCount = 0;
+
+                week.mShrink.forEach((match) => {
+                    if (!match[6]) return; 
+                    matchCount++;
+                    const homeNames = match[1].map(i => week.pNames[i]).join(' & ');
+                    const awayNames = match[2].map(i => week.pNames[i]).join(' & ');
+                    const hScore = match[4] || 0;
+                    const aScore = match[5] || 0;
+                    const isHomeWin = hScore > aScore;
+                    const isAwayWin = aScore > hScore;
+
+                    matchesHtml += `
+                        <tr class="border-b border-slate-100 dark:border-slate-700/50 last:border-0 hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors">
+                            <td class="py-2 px-3 text-center text-slate-500 dark:text-slate-400 text-sm">${matchCount}</td>
+                            <td class="py-2 px-3 text-right font-medium ${isHomeWin ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}">${homeNames}</td>
+                            <td class="py-2 px-3 text-center font-bold text-slate-800 dark:text-slate-100 bg-slate-50 dark:bg-slate-800/50 rounded-lg mx-2">
+                                <span class="${isHomeWin ? 'text-emerald-600 dark:text-emerald-400' : ''}">${hScore}</span>
+                                <span class="text-slate-400 mx-1">-</span>
+                                <span class="${isAwayWin ? 'text-emerald-600 dark:text-emerald-400' : ''}">${aScore}</span>
+                            </td>
+                            <td class="py-2 px-3 text-left font-medium ${isAwayWin ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}">${awayNames}</td>
+                        </tr>
+                    `;
+                });
+
+                const isSelected = (week.weekIndex === selectedIndex);
+                
+                const highlightClasses = isSelected 
+                    ? 'border-indigo-500 ring-2 ring-indigo-500 dark:border-indigo-400 dark:ring-indigo-400 bg-indigo-50/10 dark:bg-indigo-900/10' 
+                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800';
+
+                const statsBtnHtml = isSelected
+                    ? `<button onclick="processLinks(-1)" class="w-full sm:w-auto px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition shadow-sm flex items-center justify-center gap-1">
+                           ✅ กำลังดูวีคนี้ (คลิกยกเลิก)
+                       </button>`
+                    : `<button onclick="processLinks(${week.weekIndex})" class="w-full sm:w-auto px-3 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-800/50 text-indigo-700 dark:text-indigo-400 text-sm font-medium rounded-lg transition shadow-sm flex items-center justify-center gap-1">
+                           📊 ดูสถิติเฉพาะวีคนี้
+                       </button>`;
+
+                const viewScheduleBtnHtml = `
+                    <a href="${week.originalLine}" target="_blank" class="w-full sm:w-auto px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-sm font-medium rounded-lg transition shadow-sm flex items-center justify-center gap-1 border border-slate-200 dark:border-slate-600">
+                        🌐 ดูตาราง
+                    </a>
+                `;
+
+                const buttonGroupHtml = `
+                    <div class="flex flex-col xl:flex-row gap-2 w-full sm:w-auto mt-2 sm:mt-0">
+                        ${viewScheduleBtnHtml}
+                        ${statsBtnHtml}
+                    </div>
+                `;
+
+                const cardHtml = `
+                    <div class="rounded-2xl shadow-sm border overflow-hidden transition-all flex flex-col ${highlightClasses}">
+                        <div class="p-4 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                            <h3 class="text-lg font-semibold whitespace-nowrap ${isSelected ? 'text-indigo-700 dark:text-indigo-400' : 'text-slate-800 dark:text-slate-100'}">
+                                สัปดาห์ที่ ${week.weekIndex + 1}
+                            </h3>
+                            ${buttonGroupHtml}
+                        </div>
+                        <div class="p-0 overflow-x-auto custom-scrollbar flex-1">
+                            <table class="w-full text-sm whitespace-nowrap">
+                                <thead class="bg-slate-100 dark:bg-slate-700/50 text-slate-500 dark:text-slate-400">
+                                    <tr>
+                                        <th class="py-2 px-3 text-center font-medium w-16">Match</th>
+                                        <th class="py-2 px-3 text-right font-medium">ทีมเหย้า</th>
+                                        <th class="py-2 px-3 text-center font-medium w-24">สกอร์</th>
+                                        <th class="py-2 px-3 text-left font-medium">ทีมเยือน</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${matchesHtml || `<tr><td colspan="4" class="py-4 text-center text-slate-400">ไม่มีแมตช์ที่แข่งจบ</td></tr>`}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', cardHtml);
+            });
+        }
+    </script>
+</body>
+</html>
