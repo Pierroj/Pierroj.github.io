@@ -23,7 +23,6 @@ if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.match
 let players = [];
 let matches = []; 
 
-// ระบบจัดการสถานะ
 let currentRole = 'NONE'; 
 let currentCompressedData = '';
 let currentRoomId = '';
@@ -31,16 +30,28 @@ let currentRoomId = '';
 let peer = null;
 let connections = [];
 
-// ================= ระบบจัดการผู้เล่น =================
+// ================= ระบบจัดการผู้เล่น (รองรับ Gender) =================
 function addPlayer() {
     const nameInput = document.getElementById('playerName');
     const isBeginner = document.getElementById('isBeginner').checked;
+    
+    // อ่านค่าเพศจาก Radio Button
+    const genderInput = document.querySelector('input[name="playerGender"]:checked');
+    const gender = genderInput ? genderInput.value : 'M';
+
     const name = nameInput.value.trim();
     if (name === '') return alert('กรุณาใส่ชื่อผู้เล่น');
     if (players.find(p => p.name === name)) return alert('ชื่อซ้ำครับ');
-    players.push({ name, isBeginner, gamesPlayed: 0, homeGames: 0, awayGames: 0, consecutiveGames: 0, consecutiveRests: 0, firstRestAt: Infinity });
+    
+    players.push({ name, isBeginner, gender, gamesPlayed: 0, homeGames: 0, awayGames: 0, consecutiveGames: 0, consecutiveRests: 0, firstRestAt: Infinity });
+    
     nameInput.value = '';
     document.getElementById('isBeginner').checked = false;
+    
+    // รีเซ็ตปุ่มเพศให้กลับไปเป็น ชาย ทุกครั้งที่แอดเสร็จ
+    const defaultGender = document.querySelector('input[name="playerGender"][value="M"]');
+    if (defaultGender) defaultGender.checked = true;
+    
     updatePlayerList();
 }
 
@@ -52,7 +63,7 @@ function updatePlayerList() {
     const list = document.getElementById('playerList');
     list.innerHTML = players.map((p, index) => `
         <li class="bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-2 rounded-full text-sm flex items-center gap-2 hover:bg-white dark:hover:bg-gray-600 transition shadow-sm text-gray-800 dark:text-gray-100">
-            <span class="font-medium">${p.name}</span> <span class="text-xs">${p.isBeginner ? '🐣' : '🔥'}</span>
+            <span class="font-medium">${p.name}</span> <span class="text-xs">${p.gender === 'F' ? '👩' : '👨'}${p.isBeginner ? '🐣' : '🔥'}</span>
             <button onclick="removePlayer(${index})" class="text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 font-bold ml-1 transition text-base leading-none">×</button>
         </li>
     `).join('');
@@ -76,7 +87,7 @@ function getCombinations(array, k) {
     helper(0, []); return results;
 }
 
-// ================= ระบบสมองกล (Algorithm) =================
+// ================= ระบบสมองกล (Algorithm อัปเกรด) =================
 function generateMatches() {
     if (players.length < 4) return alert('ต้องมีผู้เล่นอย่างน้อย 4 คนครับ');
     
@@ -89,12 +100,13 @@ function generateMatches() {
     document.getElementById('setupSection').classList.remove('hidden');
     
     const totalGamesInput = parseInt(document.getElementById('totalGames').value);
-    const initialPreventBeginner = document.getElementById('preventBeginner').checked;
-    let enableScoreTable = document.getElementById('enableScoreTable').checked;
+    const initialPreventBeginner = document.getElementById('preventBeginner') ? document.getElementById('preventBeginner').checked : false;
+    const preventGenderMismatch = document.getElementById('preventGenderMismatch') ? document.getElementById('preventGenderMismatch').checked : false;
+    let enableScoreTable = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
     
     if (totalGamesInput > 20 || players.length > 10) {
         enableScoreTable = false;
-        document.getElementById('enableScoreTable').checked = false; 
+        if(document.getElementById('enableScoreTable')) document.getElementById('enableScoreTable').checked = false; 
     }
     
     const mainLayout = document.getElementById('mainLayout');
@@ -177,11 +189,25 @@ function generateMatches() {
             [[playing4[0], playing4[3]], [playing4[1], playing4[2]]]
         ];
 
+        // 🛡️ กฎที่ 1: ห้ามมือใหม่จับคู่กันเอง
         if (isPreventBeginnerActive) {
             let filtered = possiblePairs.filter(c => 
                 c[0].filter(p => p.isBeginner).length < 2 && c[1].filter(p => p.isBeginner).length < 2
             );
             if (filtered.length > 0) possiblePairs = filtered;
+        }
+
+        // 🛡️ กฎที่ 2: ห้าม หญิง-หญิง VS ชาย-ชาย
+        if (preventGenderMismatch) {
+            let filteredGender = possiblePairs.filter(c => {
+                let tA = c[0]; let tB = c[1];
+                let tAMM = tA[0].gender === 'M' && tA[1].gender === 'M';
+                let tAFF = tA[0].gender === 'F' && tA[1].gender === 'F';
+                let tBMM = tB[0].gender === 'M' && tB[1].gender === 'M';
+                let tBFF = tB[0].gender === 'F' && tB[1].gender === 'F';
+                return !((tAMM && tBFF) || (tAFF && tBMM));
+            });
+            if (filteredGender.length > 0) possiblePairs = filteredGender;
         }
 
         let nonConsec = possiblePairs.filter(c => !prevTeams.includes(getTeamKey(c[0][0], c[0][1])) && !prevTeams.includes(getTeamKey(c[1][0], c[1][1])));
@@ -241,7 +267,8 @@ function generateMatches() {
         matches.push({ gameNum: i, homeTeam: home, awayTeam: away, sittingOut, homeScore: 0, awayScore: 0, isFinished: false });
     }
 
-    updateCompressedData(enableScoreTable);
+    let isScoreTableEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
+    updateCompressedData(isScoreTableEnabled);
     updateAddressBarURL();
 
     renderHTMLSummary(matches, enableScoreTable);
@@ -279,9 +306,11 @@ function recalculatePlayerStats() {
     });
 }
 
+// 🔧 แช่แข็งข้อมูลทั้งหมดใส่ลิงก์
 function updateCompressedData(enableScoreTable) {
     const pNames = players.map(p => p.name);
     const pBegins = players.map(p => p.isBeginner ? 1 : 0);
+    const pGenders = players.map(p => p.gender === 'F' ? 0 : 1);
     const mShrink = matches.map(m => [
         m.gameNum, 
         m.homeTeam.map(p => pNames.indexOf(p.name)),
@@ -291,7 +320,7 @@ function updateCompressedData(enableScoreTable) {
         m.awayScore || 0,     
         m.isFinished ? 1 : 0  
     ]);
-    const shareData = [pNames, pBegins, mShrink, enableScoreTable ? 1 : 0];
+    const shareData = [pNames, pBegins, mShrink, enableScoreTable ? 1 : 0, pGenders];
     currentCompressedData = LZString.compressToEncodedURIComponent(JSON.stringify(shareData));
 }
 
@@ -309,7 +338,6 @@ function openEditMatch(index) {
     const m = matches[index];
     const pNames = players.map(p => p.name);
     
-    // สร้าง Dropdown ให้อัตโนมัติ
     const makeOptions = (selectedName) => {
         return pNames.map(name => `<option value="${name}" ${name === selectedName ? 'selected' : ''}>${name}</option>`).join('');
     };
@@ -376,25 +404,19 @@ function saveEditMatch(index) {
         return;
     }
     
-    // อัปเดตข้อมูลคู่แข่งใหม่
     matches[index].homeTeam = [players.find(p => p.name === h1), players.find(p => p.name === h2)];
     matches[index].awayTeam = [players.find(p => p.name === a1), players.find(p => p.name === a2)];
-    
-    // หาคนที่เหลือให้ไปนั่งพัก
     matches[index].sittingOut = players.filter(p => !selectedNames.includes(p.name));
     
     closeEditModal();
-    
-    // รีเซ็ตแล้วคำนวณสถิติใหม่ทั้งหมด
     recalculatePlayerStats();
     
-    // เซฟลงเครื่องและอัปเดตหน้าจอ
     saveScoresToLocal();
-    renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
+    let isScoreTableEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
+    renderHTMLSummary(matches, isScoreTableEnabled);
     drawMatchListCanvas(matches);
-    if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
+    if(isScoreTableEnabled) drawCanvasTable(matches);
     
-    // ส่งข้อมูลใหม่ไปให้ผู้ชม
     broadcastSync();
 }
 
@@ -423,9 +445,10 @@ function setScore(index, team, val) {
     if (team === 'away') m.awayScore = newScore;
     
     saveScoresToLocal();
-    renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
+    let isScoreTableEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
+    renderHTMLSummary(matches, isScoreTableEnabled);
     drawMatchListCanvas(matches);
-    if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
+    if(isScoreTableEnabled) drawCanvasTable(matches);
     broadcastSync(); 
 }
 
@@ -438,9 +461,10 @@ function updateScore(index, team, delta) {
     if (team === 'away') m.awayScore = Math.max(0, m.awayScore + delta);
     
     saveScoresToLocal();
-    renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
+    let isScoreTableEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
+    renderHTMLSummary(matches, isScoreTableEnabled);
     drawMatchListCanvas(matches);
-    if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
+    if(isScoreTableEnabled) drawCanvasTable(matches);
     broadcastSync(); 
 }
 
@@ -449,28 +473,29 @@ function toggleFinish(index) {
     matches[index].isFinished = !matches[index].isFinished;
     
     saveScoresToLocal();
-    renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
+    let isScoreTableEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
+    renderHTMLSummary(matches, isScoreTableEnabled);
     drawMatchListCanvas(matches);
-    if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
+    if(isScoreTableEnabled) drawCanvasTable(matches);
     broadcastSync();
 }
 
 function toggleScoreTable() {
     if (matches.length > 20 || players.length > 10) {
         alert('ไม่สามารถเปิดตารางคะแนนได้ เนื่องจากมีผู้เล่นเกิน 10 คน หรือจำนวนเกมเกิน 20 แมตช์ครับ ⚠️');
+        if (document.getElementById('enableScoreTable')) document.getElementById('enableScoreTable').checked = false;
         return;
     }
     
-    const checkbox = document.getElementById('enableScoreTable');
-    checkbox.checked = !checkbox.checked;
+    let isScoreTableEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
     
-    updateCompressedData(checkbox.checked);
+    updateCompressedData(isScoreTableEnabled);
     updateAddressBarURL(); 
     
-    renderHTMLSummary(matches, checkbox.checked);
+    renderHTMLSummary(matches, isScoreTableEnabled);
     drawMatchListCanvas(matches);
     
-    if(checkbox.checked) {
+    if(isScoreTableEnabled) {
         setTimeout(() => { drawCanvasTable(matches); }, 50);
     }
 }
@@ -551,7 +576,6 @@ function renderHTMLSummary(matches, enableScoreTable) {
     document.getElementById('matches').innerHTML = matches.map((m, index) => {
         let scoreUI = '';
         
-        // อัปเกรด: เพิ่มปุ่ม "แก้ไขคู่" สำหรับ Admin
         let editButtonHTML = (currentRole === 'ADMIN' && !m.isFinished) 
             ? `<button onclick="openEditMatch(${index})" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-[11px] sm:text-xs font-bold transition flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-md border border-blue-200 dark:border-blue-800 active:scale-95 shadow-sm">✏️ เปลี่ยนตัว</button>` 
             : '';
@@ -629,7 +653,7 @@ function renderHTMLSummary(matches, enableScoreTable) {
     `}).join('');
 }
 
-// ================= วาดรูป A4 =================
+// ================= วาดรูป A4 (อัปเกรดแก้ชื่อชน Game X) =================
 function drawMatchListCanvas(matches) {
     const canvas = document.getElementById('matchListCanvas');
     const ctx = canvas.getContext('2d');
@@ -659,29 +683,72 @@ function drawMatchListCanvas(matches) {
         ctx.fillStyle = m.isFinished ? '#9ca3af' : '#10b981'; 
         ctx.beginPath(); ctx.moveTo(x + 16, y); ctx.lineTo(x + 10, y); ctx.lineTo(x + 10, y + cardH); ctx.lineTo(x + 16, y + cardH); ctx.quadraticCurveTo(x, y + cardH, x, y + cardH - 16); ctx.lineTo(x, y + 16); ctx.quadraticCurveTo(x, y, x + 16, y); ctx.fill(); 
         
-        const scaleF = cardH < 100 ? cardH / 100 : 1; 
+        const scaleF = cardH < 120 ? cardH / 120 : 1; 
         
         ctx.fillStyle = m.isFinished ? '#6b7280' : '#374151'; 
-        ctx.font = `bold ${22 * scaleF}px Prompt`; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; 
-        ctx.fillText(`Game ${m.gameNum}${m.isFinished ? ' (จบแล้ว)' : ''}`, x + 30, y + (20 * scaleF)); 
-        
-        const teamY = y + cardH/2 + (10 * scaleF); 
+        ctx.font = `bold ${20 * scaleF}px Prompt`; ctx.textAlign = 'left'; ctx.textBaseline = 'top'; 
+        ctx.fillText(`Game ${m.gameNum}${m.isFinished ? ' (จบแล้ว)' : ''}`, x + 25, y + (16 * scaleF)); 
         
         let hasScore = m.isFinished || m.homeScore > 0 || m.awayScore > 0;
         let centerText = hasScore ? `${m.homeScore} - ${m.awayScore}` : 'VS';
         let centerColor = m.isFinished ? '#dc2626' : (hasScore ? '#ea580c' : '#9ca3af');
-        let centerFont = hasScore ? `900 ${28 * scaleF}px Prompt` : `900 ${18 * scaleF}px Prompt`;
-        let nameOffset = hasScore ? 55 * scaleF : 25 * scaleF;
+        
+        let homeName = `${m.homeTeam[0].name} & ${m.homeTeam[1].name}`;
+        let awayName = `${m.awayTeam[0].name} & ${m.awayTeam[1].name}`;
 
-        ctx.fillStyle = centerColor; ctx.font = centerFont; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
-        ctx.fillText(centerText, x + cardW/2, teamY); 
-        
-        ctx.fillStyle = m.isFinished ? '#4b5563' : '#1f2937'; 
-        ctx.font = `bold ${28 * scaleF}px "Google Sans", Prompt`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle'; 
-        ctx.fillText(`${m.homeTeam[0].name} & ${m.homeTeam[1].name}`, x + cardW/2 - nameOffset, teamY); 
-        
-        ctx.textAlign = 'left'; 
-        ctx.fillText(`${m.awayTeam[0].name} & ${m.awayTeam[1].name}`, x + cardW/2 + nameOffset, teamY); 
+        if (cols >= 3) {
+            let y1 = y + cardH * 0.42; 
+            let y2 = y + cardH * 0.65;
+            let y3 = y + cardH * 0.88;
+            
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+            let maxStackW = cardW - 20; 
+
+            const drawStackFitText = (text, yPos) => {
+                let size = 18 * scaleF; 
+                ctx.font = `bold ${size}px "Google Sans", Prompt`;
+                while (ctx.measureText(text).width > maxStackW && size > 10) {
+                    size -= 1;
+                    ctx.font = `bold ${size}px "Google Sans", Prompt`;
+                }
+                ctx.fillText(text, x + cardW/2, yPos);
+            };
+
+            ctx.fillStyle = m.isFinished ? '#4b5563' : '#1f2937'; 
+            drawStackFitText(homeName, y1);
+            
+            ctx.fillStyle = centerColor; 
+            ctx.font = hasScore ? `900 ${18 * scaleF}px Prompt` : `900 ${12 * scaleF}px Prompt`;
+            ctx.fillText(centerText, x + cardW/2, y2);
+            
+            ctx.fillStyle = m.isFinished ? '#4b5563' : '#1f2937'; 
+            drawStackFitText(awayName, y3);
+
+        } else {
+            const teamY = y + cardH/2 + (10 * scaleF); 
+            let centerFont = hasScore ? `900 ${28 * scaleF}px Prompt` : `900 ${18 * scaleF}px Prompt`;
+            let nameOffset = hasScore ? 55 * scaleF : 25 * scaleF;
+
+            ctx.fillStyle = centerColor; ctx.font = centerFont; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; 
+            ctx.fillText(centerText, x + cardW/2, teamY); 
+
+            let maxTextWidth = (cardW / 2) - nameOffset - 15; 
+            ctx.fillStyle = m.isFinished ? '#4b5563' : '#1f2937'; 
+
+            const drawAutoFitText = (text, xPos, align) => {
+                let size = 28 * scaleF;
+                ctx.font = `bold ${size}px "Google Sans", Prompt`;
+                while (ctx.measureText(text).width > maxTextWidth && size > 12) {
+                    size -= 1;
+                    ctx.font = `bold ${size}px "Google Sans", Prompt`;
+                }
+                ctx.textAlign = align;
+                ctx.fillText(text, xPos, teamY);
+            };
+
+            drawAutoFitText(homeName, x + cardW/2 - nameOffset, 'right');
+            drawAutoFitText(awayName, x + cardW/2 + nameOffset, 'left');
+        }
     });
     ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.strokeRect(10, 10, baseWidth - 20, baseHeight - 20);
 }
@@ -939,9 +1006,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
             const decoded = JSON.parse(decompressed);
             const pNames = decoded[0]; const pBegins = decoded[1]; const mShrink = decoded[2]; const sPref = decoded[3];
+            const pGenders = decoded[4] || []; 
 
             players = pNames.map((name, idx) => ({
-                name: name, isBeginner: pBegins[idx] === 1, gamesPlayed: 0, homeGames: 0, awayGames: 0,
+                name: name, isBeginner: pBegins[idx] === 1, 
+                gender: pGenders[idx] === 0 ? 'F' : 'M',
+                gamesPlayed: 0, homeGames: 0, awayGames: 0,
                 consecutiveGames: 0, consecutiveRests: 0, firstRestAt: Infinity
             }));
 
@@ -966,7 +1036,8 @@ window.addEventListener('DOMContentLoaded', () => {
             
             let enableScoreTable = (sPref === 1);
             if (matches.length > 20 || players.length > 10) enableScoreTable = false;
-            document.getElementById('enableScoreTable').checked = enableScoreTable;
+            let stCheckbox = document.getElementById('enableScoreTable');
+            if (stCheckbox) stCheckbox.checked = enableScoreTable;
             
             const mainLayout = document.getElementById('mainLayout');
             mainLayout.classList.remove('items-center');
@@ -1010,7 +1081,6 @@ window.addEventListener('DOMContentLoaded', () => {
                         if (data.type === 'SYNC') {
                             data.matches.forEach((updatedMatch, i) => {
                                 if (matches[i]) {
-                                    // อัปเกรด: อัปเดตรายชื่อคู่แข่งเผื่อกรรมการแก้ตัวผู้เล่นกลางคันด้วย
                                     matches[i].homeTeam = updatedMatch.homeTeam;
                                     matches[i].awayTeam = updatedMatch.awayTeam;
                                     matches[i].sittingOut = updatedMatch.sittingOut;
@@ -1021,14 +1091,15 @@ window.addEventListener('DOMContentLoaded', () => {
                                 }
                             });
                             
-                            recalculatePlayerStats(); // คำนวณสถิติใหม่เผื่อมีคนโดนสลับตัว
+                            recalculatePlayerStats(); 
                             
                             const scores = matches.map(m => ({ h: m.homeScore, a: m.awayScore, f: m.isFinished }));
                             localStorage.setItem('pkb_score_' + currentRoomId, JSON.stringify(scores));
                             
-                            renderHTMLSummary(matches, document.getElementById('enableScoreTable').checked);
+                            let isSTEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
+                            renderHTMLSummary(matches, isSTEnabled);
                             drawMatchListCanvas(matches);
-                            if(document.getElementById('enableScoreTable').checked) drawCanvasTable(matches);
+                            if(isSTEnabled) drawCanvasTable(matches);
                         }
                     });
 
