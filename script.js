@@ -897,12 +897,12 @@ function copyShareLink(type) {
     if (type === 'admin') {
         shareUrl += '&admin=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert('👑 คัดลอก "ลิงก์กรรมการ" สำเร็จ!\nโปรดเซฟลิงก์นี้เก็บไว้ หากเผลอปิดเว็บให้เปิดลิงก์นี้เพื่อกู้คะแนนกลับมาครับ');
+            alert('👑 คัดลอก "ลิงก์กรรมการ" สำเร็จ!');
         }).catch(err => prompt('คัดลอกไม่ได้ กรุณาก๊อปปี้ลิงก์นี้:', shareUrl));
     } else if (type === 'viewer') {
         shareUrl += '&live=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert('🔗 คัดลอก "ลิงก์คนดู" สำเร็จ!\nนำไปแชร์ให้เพื่อนๆ ดูได้เลย (ลิงก์นี้ฝังคะแนนล่าสุดไว้แล้วด้วยครับ!)');
+            alert('🔗 คัดลอก "ลิงก์คนดู" สำเร็จ!');
         }).catch(err => prompt('คัดลอกไม่ได้ กรุณาก๊อปปี้ลิงก์นี้:', shareUrl));
     }
 }
