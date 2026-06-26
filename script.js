@@ -580,12 +580,14 @@ function renderHTMLSummary(matches, enableScoreTable) {
             ? `<button onclick="openEditMatch(${index})" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-[11px] sm:text-xs font-bold transition flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-md border border-blue-200 dark:border-blue-800 active:scale-95 shadow-sm">✏️ เปลี่ยนตัว</button>` 
             : '';
 
-        if (currentRole === 'ADMIN') {
+         if (currentRole === 'ADMIN') {
             scoreUI = `
                 <div class="flex justify-between items-center mt-3 bg-white dark:bg-gray-900/50 p-2 rounded-lg border border-gray-100 dark:border-gray-600 shadow-inner">
                     <div class="flex items-center gap-1 sm:gap-2">
                         <button onclick="updateScore(${index}, 'home', -1)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold hover:bg-red-200 dark:hover:bg-red-800 transition active:scale-90 flex justify-center items-center">-</button>
-                        <input type="tel" value="${m.homeScore || 0}" onchange="setScore(${index}, 'home', this.value)" class="text-base sm:text-lg font-bold text-blue-600 dark:text-blue-400 w-10 sm:w-12 text-center font-prompt bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none py-1 shadow-inner transition-colors" ${m.isFinished ? 'disabled' : ''}>
+                        
+                        <input type="tel" value="${m.homeScore === 0 ? '' : m.homeScore}" placeholder="0" onchange="setScore(${index}, 'home', this.value)" class="text-base sm:text-lg font-bold text-blue-600 dark:text-blue-400 w-10 sm:w-12 text-center font-prompt bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none py-1 shadow-inner transition-colors" ${m.isFinished ? 'disabled' : ''}>
+                        
                         <button onclick="updateScore(${index}, 'home', 1)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-bold hover:bg-green-200 dark:hover:bg-green-800 transition active:scale-90 flex justify-center items-center">+</button>
                     </div>
                     <button onclick="toggleFinish(${index})" class="px-2 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition shadow-sm active:scale-95 ${m.isFinished ? 'bg-gray-400 dark:bg-gray-600 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'}">
@@ -593,7 +595,9 @@ function renderHTMLSummary(matches, enableScoreTable) {
                     </button>
                     <div class="flex items-center gap-1 sm:gap-2">
                         <button onclick="updateScore(${index}, 'away', -1)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold hover:bg-red-200 dark:hover:bg-red-800 transition active:scale-90 flex justify-center items-center">-</button>
-                        <input type="tel" value="${m.awayScore || 0}" onchange="setScore(${index}, 'away', this.value)" class="text-base sm:text-lg font-bold text-orange-600 dark:text-orange-400 w-10 sm:w-12 text-center font-prompt bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none py-1 shadow-inner transition-colors" ${m.isFinished ? 'disabled' : ''}>
+                        
+                        <input type="tel" value="${m.awayScore === 0 ? '' : m.awayScore}" placeholder="0" onchange="setScore(${index}, 'away', this.value)" class="text-base sm:text-lg font-bold text-orange-600 dark:text-orange-400 w-10 sm:w-12 text-center font-prompt bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none py-1 shadow-inner transition-colors" ${m.isFinished ? 'disabled' : ''}>
+                        
                         <button onclick="updateScore(${index}, 'away', 1)" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 font-bold hover:bg-green-200 dark:hover:bg-green-800 transition active:scale-90 flex justify-center items-center">+</button>
                     </div>
                 </div>
