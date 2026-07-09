@@ -19,6 +19,19 @@ if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.match
     applyTheme(false);
 }
 
+// ================= ฟังก์ชันสุ่ม Array ที่ปลอดภัย (Fisher-Yates) =================
+function shuffleArray(array) {
+    let curId = array.length;
+    while (0 !== curId) {
+        let randId = Math.floor(Math.random() * curId);
+        curId -= 1;
+        let tmp = array[curId];
+        array[curId] = array[randId];
+        array[randId] = tmp;
+    }
+    return array;
+}
+
 // ================= ตัวแปรหลัก & ตัวแปรถ่ายทอดสด =================
 let players = [];
 let matches = []; 
@@ -30,28 +43,28 @@ let currentRoomId = '';
 let peer = null;
 let connections = [];
 
-// ================= ระบบจัดการผู้เล่น (รองรับ Gender) =================
+// ================= ระบบจัดการผู้เล่น =================
 function addPlayer() {
     const nameInput = document.getElementById('playerName');
-    const isBeginner = document.getElementById('isBeginner').checked;
-    
-    // อ่านค่าเพศจาก Radio Button
-    const genderInput = document.querySelector('input[name="playerGender"]:checked');
-    const gender = genderInput ? genderInput.value : 'M';
-
     const name = nameInput.value.trim();
+    
     if (name === '') return alert('กรุณาใส่ชื่อผู้เล่น');
     if (players.find(p => p.name === name)) return alert('ชื่อซ้ำครับ');
     
-    players.push({ name, isBeginner, gender, gamesPlayed: 0, homeGames: 0, awayGames: 0, consecutiveGames: 0, consecutiveRests: 0, firstRestAt: Infinity });
+    // Default: เซ็ตให้เป็นชาย (M) และระดับทั่วไป (isBeginner: false)
+    players.push({ 
+        name, 
+        isBeginner: false, 
+        gender: 'M', 
+        gamesPlayed: 0, 
+        homeGames: 0, 
+        awayGames: 0, 
+        consecutiveGames: 0, 
+        consecutiveRests: 0, 
+        firstRestAt: Infinity 
+    });
     
     nameInput.value = '';
-    document.getElementById('isBeginner').checked = false;
-    
-    // รีเซ็ตปุ่มเพศให้กลับไปเป็น ชาย ทุกครั้งที่แอดเสร็จ
-    const defaultGender = document.querySelector('input[name="playerGender"][value="M"]');
-    if (defaultGender) defaultGender.checked = true;
-    
     updatePlayerList();
 }
 
@@ -59,12 +72,46 @@ document.getElementById('playerName').addEventListener('keypress', function (e) 
     if (e.key === 'Enter') addPlayer();
 });
 
+function setPlayerGender(index, gender) {
+    players[index].gender = gender;
+    updatePlayerList();
+}
+
+function setPlayerSkill(index, isBeginner) {
+    players[index].isBeginner = isBeginner;
+    updatePlayerList();
+}
+
+// 🛠️ อัปเกรด UI: แบบการ์ด 2 บรรทัด (ชื่อบน, ตัวเลือกล่าง) สวยงามแบบในรูปเป๊ะ
 function updatePlayerList() {
     const list = document.getElementById('playerList');
+    list.className = "flex flex-col gap-3 mt-4"; 
+    
     list.innerHTML = players.map((p, index) => `
-        <li class="bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-2 rounded-full text-sm flex items-center gap-2 hover:bg-white dark:hover:bg-gray-600 transition shadow-sm text-gray-800 dark:text-gray-100">
-            <span class="font-medium">${p.name}</span> <span class="text-xs">${p.gender === 'F' ? '👩' : '👨'}${p.isBeginner ? '🐣' : '🔥'}</span>
-            <button onclick="removePlayer(${index})" class="text-red-400 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 font-bold ml-1 transition text-base leading-none">×</button>
+        <li class="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 rounded-2xl flex flex-col gap-3.5 shadow-sm transition-colors relative">
+            
+            <!-- บรรทัดที่ 1: ชื่อผู้เล่น + ปุ่มลบ -->
+            <div class="flex justify-between items-center w-full">
+                <span class="font-bold text-gray-800 dark:text-white text-[1.1rem] pl-1 truncate">${p.name}</span>
+                <button onclick="removePlayer(${index})" class="text-gray-400 hover:text-red-500 font-bold text-lg leading-none w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors" title="ลบผู้เล่น">×</button>
+            </div>
+            
+            <!-- บรรทัดที่ 2: กลุ่มตัวเลือก (แบ่งครึ่ง 50/50) -->
+            <div class="flex gap-2.5 w-full">
+                
+                <!-- Radio Group: เพศ -->
+                <div class="flex w-1/2 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-600">
+                    <button onclick="setPlayerGender(${index}, 'M')" class="flex-1 px-1 py-2 rounded-lg text-xs sm:text-[13px] font-bold transition-all ${p.gender === 'M' ? 'bg-white dark:bg-gray-700 text-blue-600 dark:text-blue-400 shadow-sm border border-gray-100 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}">👨 ชาย</button>
+                    <button onclick="setPlayerGender(${index}, 'F')" class="flex-1 px-1 py-2 rounded-lg text-xs sm:text-[13px] font-bold transition-all ${p.gender === 'F' ? 'bg-white dark:bg-gray-700 text-orange-500 dark:text-orange-400 shadow-sm border border-gray-100 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}">👩 หญิง</button>
+                </div>
+
+                <!-- Radio Group: ฝีมือ -->
+                <div class="flex w-1/2 bg-gray-50 dark:bg-gray-900 p-1 rounded-xl border border-gray-200 dark:border-gray-600">
+                    <button onclick="setPlayerSkill(${index}, false)" class="flex-1 px-1 py-2 rounded-lg text-xs sm:text-[13px] font-bold transition-all ${!p.isBeginner ? 'bg-white dark:bg-gray-700 text-red-500 dark:text-red-400 shadow-sm border border-gray-100 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}">🔥 ทั่วไป</button>
+                    <button onclick="setPlayerSkill(${index}, true)" class="flex-1 px-1 py-2 rounded-lg text-xs sm:text-[13px] font-bold transition-all ${p.isBeginner ? 'bg-white dark:bg-gray-700 text-green-600 dark:text-green-400 shadow-sm border border-gray-100 dark:border-gray-600' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'}">🔰 มือใหม่</button>
+                </div>
+
+            </div>
         </li>
     `).join('');
 }
@@ -74,7 +121,9 @@ function removePlayer(index) {
     updatePlayerList(); 
 }
 
-function getTeamKey(p1, p2) { return [p1.name, p2.name].sort().join('|'); }
+function getTeamKey(p1, p2) { 
+    return [p1.name, p2.name].sort().join('|'); 
+}
 
 function getCombinations(array, k) {
     const results = [];
@@ -87,7 +136,7 @@ function getCombinations(array, k) {
     helper(0, []); return results;
 }
 
-// ================= ระบบสมองกล (Algorithm อัปเกรด) =================
+// ================= ระบบสมองกล (Algorithm อัปเกรดแบบจำประวัติ) =================
 function generateMatches() {
     if (players.length < 4) return alert('ต้องมีผู้เล่นอย่างน้อย 4 คนครับ');
     
@@ -100,7 +149,7 @@ function generateMatches() {
     document.getElementById('setupSection').classList.remove('hidden');
     
     const totalGamesInput = parseInt(document.getElementById('totalGames').value);
-    const initialPreventBeginner = document.getElementById('preventBeginner') ? document.getElementById('preventBeginner').checked : false;
+    const isPreventBeginnerActive = document.getElementById('preventBeginner') ? document.getElementById('preventBeginner').checked : false;
     const preventGenderMismatch = document.getElementById('preventGenderMismatch') ? document.getElementById('preventGenderMismatch').checked : false;
     let enableScoreTable = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
     
@@ -118,28 +167,41 @@ function generateMatches() {
     leftColumn.classList.add('lg:w-[400px]', 'xl:w-[450px]', 'lg:sticky', 'lg:top-6', 'lg:max-h-[calc(100vh-3rem)]', 'lg:overflow-y-auto', 'custom-scrollbar', 'pr-2', 'pb-4');
 
     const totalBeginners = players.filter(p => p.isBeginner).length;
-    let isPreventBeginnerActive = initialPreventBeginner;
     if (totalBeginners > (players.length / 2)) isPreventBeginnerActive = false;
 
+    // รีเซ็ตค่าผู้เล่น
     players.forEach(p => {
         p.gamesPlayed = 0; p.homeGames = 0; p.awayGames = 0;
         p.consecutiveGames = 0; p.consecutiveRests = 0; p.firstRestAt = Infinity;
     });
 
     matches = []; 
-    let prevTeams = [];
-    let partnerHistory = {};
-    let matchHistory = {}; 
-    let matchupHistoryCount = {}; 
     let restSequence = [];
+
+    // 🧠 ระบบจำประวัติ (History Tracking)
+    let partnerCount = {};   // จำว่าใครเคยคู่ใครกี่ครั้ง
+    let opponentCount = {};  // จำว่าใครเคยแข่งกับใครกี่ครั้ง
+    let exactMatchup = {};   // จำว่าแมตช์ (ทีม A vs ทีม B) เคยเกิดขึ้นหรือยัง
+    let lastPartner = {};    // จำคู่ของตาก่อนหน้า ป้องกันคู่เดิมติดกัน
+
+    players.forEach(p => {
+        partnerCount[p.name] = {};
+        opponentCount[p.name] = {};
+        players.forEach(p2 => {
+            partnerCount[p.name][p2.name] = 0;
+            opponentCount[p.name][p2.name] = 0;
+        });
+        lastPartner[p.name] = null;
+    });
 
     for (let i = 1; i <= totalGamesInput; i++) {
         let sittingOut = [];
         let playing4 = [];
         const k = players.length - 4;
 
+        // --- เลือกว่าใครได้ลง ใครได้พัก ---
         if (players.length === 5) {
-            if (i === 1) restSequence = [...players].sort(() => Math.random() - 0.5);
+            if (i === 1) restSequence = shuffleArray([...players]);
             sittingOut = [restSequence[(i - 1) % 5]];
             playing4 = players.filter(p => !sittingOut.includes(p));
         } else if (players.length > 5) {
@@ -161,11 +223,11 @@ function generateMatches() {
                 if (strictCombos.length > 0) validCombos = strictCombos;
             }
 
-            validCombos.sort(() => Math.random() - 0.5);
+            shuffleArray(validCombos); 
             validCombos.sort((a, b) => {
                 const gA = a.reduce((s, p) => s + p.gamesPlayed, 0);
                 const gB = b.reduce((s, p) => s + p.gamesPlayed, 0);
-                if (gA !== gB) return gB - gA;
+                if (gA !== gB) return gB - gA; // คนที่ลงเยอะสุดต้องได้พัก
                 if (i > 1) {
                     const begA = a.filter(p => p.isBeginner).length;
                     const begB = b.filter(p => p.isBeginner).length;
@@ -182,7 +244,7 @@ function generateMatches() {
 
         sittingOut.forEach(p => { if (p.firstRestAt === Infinity) p.firstRestAt = i; });
 
-        playing4.sort(() => Math.random() - 0.5);
+        // --- หาคู่ที่เหมาะสมที่สุดจาก 4 คนที่ได้ลง ---
         let possiblePairs = [
             [[playing4[0], playing4[1]], [playing4[2], playing4[3]]],
             [[playing4[0], playing4[2]], [playing4[1], playing4[3]]],
@@ -210,59 +272,89 @@ function generateMatches() {
             if (filteredGender.length > 0) possiblePairs = filteredGender;
         }
 
-        let nonConsec = possiblePairs.filter(c => !prevTeams.includes(getTeamKey(c[0][0], c[0][1])) && !prevTeams.includes(getTeamKey(c[1][0], c[1][1])));
-        let combosToEval = nonConsec.length > 0 ? nonConsec : possiblePairs;
+        // 🧠 ให้คะแนนความซ้ำซ้อน (ยิ่งคะแนนน้อย ยิ่งดี)
+        let bestPair = null;
+        let lowestCost = Infinity;
 
-        combosToEval.forEach(c => {
-            const t1Key = getTeamKey(c[0][0], c[0][1]);
-            const t2Key = getTeamKey(c[1][0], c[1][1]);
-            
-            const h1 = partnerHistory[t1Key] || 0;
-            const h2 = partnerHistory[t2Key] || 0;
-            c.maxH = Math.max(h1, h2); 
-            c.sumH = h1 + h2;
-            
-            const mKey = [t1Key, t2Key].sort().join('VS');
-            c.matchupCount = matchupHistoryCount[mKey] || 0;
-        });
-        
-        combosToEval.sort((a, b) => {
-            if (a.matchupCount !== b.matchupCount) return a.matchupCount - b.matchupCount; 
-            if (a.maxH !== b.maxH) return a.maxH - b.maxH;
-            if (a.sumH !== b.sumH) return a.sumH - b.sumH;
-            return Math.random() - 0.5;
-        });
-        
-        let finalC = combosToEval[0];
-        let tA = finalC[0], tB = finalC[1];
-        let tAKey = getTeamKey(tA[0], tA[1]), tBKey = getTeamKey(tB[0], tB[1]);
+        shuffleArray(possiblePairs); // สุ่มลำดับก่อนประเมิน ป้องกันการเลือกลำดับเดิมเสมอ
 
-        let home, away;
-        let matchKey = [tAKey, tBKey].sort().join('VS');
-        
-        if (matchHistory[matchKey]) {
-            if (matchHistory[matchKey] === tAKey) { home = tB; away = tA; } 
-            else { home = tA; away = tB; }
-        } else {
-            const hA = tA[0].homeGames + tA[1].homeGames;
-            const hB = tB[0].homeGames + tB[1].homeGames;
-            if (hA < hB) { home = tA; away = tB; } 
-            else if (hB < hA) { home = tB; away = tA; } 
-            else { 
-                home = Math.random() > 0.5 ? tA : tB; 
-                away = (home === tA) ? tB : tA; 
+        possiblePairs.forEach(pair => {
+            let t1 = pair[0]; let t2 = pair[1];
+            let cost = 0;
+
+            // 1. ลงโทษถ้าเคยจับคู่กันแล้ว (ยกกำลัง 2 ให้บทลงโทษรุนแรงขึ้นถ้าซ้ำหลายรอบ)
+            let p1Cost = partnerCount[t1[0].name][t1[1].name];
+            let p2Cost = partnerCount[t2[0].name][t2[1].name];
+            cost += (Math.pow(p1Cost, 2) * 1000) + (Math.pow(p2Cost, 2) * 1000);
+
+            // 2. ลงโทษถ้าเป็นการจับคู่ซ้ำกับตาก่อนหน้า (แบนเด็ดขาด)
+            if (lastPartner[t1[0].name] === t1[1].name) cost += 5000;
+            if (lastPartner[t2[0].name] === t2[1].name) cost += 5000;
+
+            // 3. ลงโทษถ้าแมตช์นี้ (ทีม A vs ทีม B) เคยเกิดขึ้นเป๊ะๆ แล้ว (ห้ามซ้ำ)
+            let team1Key = [t1[0].name, t1[1].name].sort().join('|');
+            let team2Key = [t2[0].name, t2[1].name].sort().join('|');
+            let matchKey = [team1Key, team2Key].sort().join('VS');
+            cost += Math.pow((exactMatchup[matchKey] || 0), 2) * 2000;
+
+            // 4. ลงโทษถ้าเคยเล่นเป็นคู่แข่งกันแล้ว (กระจายคู่แข่ง)
+            let oppCost = 0;
+            t1.forEach(pA => {
+                t2.forEach(pB => {
+                    oppCost += Math.pow(opponentCount[pA.name][pB.name], 2);
+                });
+            });
+            cost += oppCost * 10;
+
+            // เพิ่มความกริบของการสุ่ม
+            cost += Math.random();
+
+            if (cost < lowestCost) {
+                lowestCost = cost;
+                bestPair = pair;
             }
-        }
-        matchHistory[matchKey] = getTeamKey(home[0], home[1]);
-        matchupHistoryCount[matchKey] = (matchupHistoryCount[matchKey] || 0) + 1;
+        });
+        
+        let tA = bestPair[0], tB = bestPair[1];
 
+        // --- บันทึกประวัติศาสตร์ลงระบบ ---
+        partnerCount[tA[0].name][tA[1].name]++;
+        partnerCount[tA[1].name][tA[0].name]++;
+        partnerCount[tB[0].name][tB[1].name]++;
+        partnerCount[tB[1].name][tB[0].name]++;
+
+        lastPartner[tA[0].name] = tA[1].name;
+        lastPartner[tA[1].name] = tA[0].name;
+        lastPartner[tB[0].name] = tB[1].name;
+        lastPartner[tB[1].name] = tB[0].name;
+
+        tA.forEach(pA => {
+            tB.forEach(pB => {
+                opponentCount[pA.name][pB.name]++;
+                opponentCount[pB.name][pA.name]++;
+            });
+        });
+
+        let tAKey = [tA[0].name, tA[1].name].sort().join('|');
+        let tBKey = [tB[0].name, tB[1].name].sort().join('|');
+        let mKey = [tAKey, tBKey].sort().join('VS');
+        exactMatchup[mKey] = (exactMatchup[mKey] || 0) + 1;
+
+        // --- จัดทีมเหย้า-เยือน เพื่อความสมดุลของฝั่งสนาม ---
+        let home, away;
+        const hA = tA[0].homeGames + tA[1].homeGames;
+        const hB = tB[0].homeGames + tB[1].homeGames;
+        if (hA < hB) { home = tA; away = tB; } 
+        else if (hB < hA) { home = tB; away = tA; } 
+        else { 
+            home = Math.random() > 0.5 ? tA : tB; 
+            away = (home === tA) ? tB : tA; 
+        }
+
+        // --- อัปเดตสถิติรายบุคคล ---
         home.forEach(p => { p.gamesPlayed++; p.homeGames++; p.consecutiveGames++; p.consecutiveRests = 0; });
         away.forEach(p => { p.gamesPlayed++; p.awayGames++; p.consecutiveGames++; p.consecutiveRests = 0; });
         sittingOut.forEach(p => { p.consecutiveGames = 0; p.consecutiveRests++; });
-        
-        partnerHistory[getTeamKey(home[0], home[1])] = (partnerHistory[getTeamKey(home[0], home[1])] || 0) + 1;
-        partnerHistory[getTeamKey(away[0], away[1])] = (partnerHistory[getTeamKey(away[0], away[1])] || 0) + 1;
-        prevTeams = [getTeamKey(home[0], home[1]), getTeamKey(away[0], away[1])];
 
         matches.push({ gameNum: i, homeTeam: home, awayTeam: away, sittingOut, homeScore: 0, awayScore: 0, isFinished: false });
     }
@@ -283,7 +375,7 @@ function generateMatches() {
     }
 }
 
-// 🔧 คำนวณสถิติผู้เล่นใหม่ทั้งหมด (ใช้ตอนแก้ไขรายชื่อผู้เล่นกลางคัน)
+// 🔧 คำนวณสถิติผู้เล่นใหม่ทั้งหมด
 function recalculatePlayerStats() {
     players.forEach(p => {
         p.gamesPlayed = 0; p.homeGames = 0; p.awayGames = 0;
@@ -487,7 +579,11 @@ function toggleScoreTable() {
         return;
     }
     
-    let isScoreTableEnabled = document.getElementById('enableScoreTable') ? document.getElementById('enableScoreTable').checked : false;
+    let checkbox = document.getElementById('enableScoreTable');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+    }
+    let isScoreTableEnabled = checkbox ? checkbox.checked : false;
     
     updateCompressedData(isScoreTableEnabled);
     updateAddressBarURL(); 
@@ -580,7 +676,7 @@ function renderHTMLSummary(matches, enableScoreTable) {
             ? `<button onclick="openEditMatch(${index})" class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-[11px] sm:text-xs font-bold transition flex items-center gap-1 bg-blue-50 dark:bg-blue-900/30 px-2.5 py-1 rounded-md border border-blue-200 dark:border-blue-800 active:scale-95 shadow-sm">✏️ เปลี่ยนตัว</button>` 
             : '';
 
-         if (currentRole === 'ADMIN') {
+        if (currentRole === 'ADMIN') {
             scoreUI = `
                 <div class="flex justify-between items-center mt-3 bg-white dark:bg-gray-900/50 p-2 rounded-lg border border-gray-100 dark:border-gray-600 shadow-inner">
                     <div class="flex items-center gap-1 sm:gap-2">
@@ -642,22 +738,83 @@ function renderHTMLSummary(matches, enableScoreTable) {
         return a.name.localeCompare(b.name);
     });
 
-    document.getElementById('stats').innerHTML = sortedForStats.map(p => {
+    document.getElementById('stats').innerHTML = sortedForStats.map((p, i) => {
         let kingBadge = (isAnyFinished && p.wins === maxWins && p.wins > 0) ? `<span class="bg-yellow-100 text-yellow-800 text-[10px] px-2 py-0.5 rounded-full border border-yellow-300 shadow-sm ml-2 font-bold whitespace-nowrap">${isAllFinished ? '👑 King' : '🔥 ผู้นำ'}</span>` : '';
+        
+        // คำนวณสถิติการจับคู่แบบเรียลไทม์
+        let partners = {};
+        matches.forEach(m => {
+            let isHome = m.homeTeam.some(x => x.name === p.name);
+            let isAway = m.awayTeam.some(x => x.name === p.name);
+            if (isHome) {
+                let partner = m.homeTeam.find(x => x.name !== p.name);
+                if (partner) partners[partner.name] = (partners[partner.name] || 0) + 1;
+            } else if (isAway) {
+                let partner = m.awayTeam.find(x => x.name !== p.name);
+                if (partner) partners[partner.name] = (partners[partner.name] || 0) + 1;
+            }
+        });
+        
+        let partnerHTML = Object.entries(partners)
+            .sort((a, b) => b[1] - a[1]) // เรียงจากคู่บ่อยสุดไปน้อยสุด
+            .map(([name, count]) => `<span class="bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-2 py-1 rounded-md text-[11px] text-gray-700 dark:text-gray-300 font-medium whitespace-nowrap">${name}: ${count} เกม</span>`)
+            .join('');
+            
+        if (!partnerHTML) partnerHTML = '<span class="text-[11px] text-gray-400">ยังไม่มีคู่</span>';
+
         return `
-        <li class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600 flex flex-col gap-1.5 shadow-sm">
-            <div class="font-bold text-gray-800 dark:text-gray-100 text-sm sm:text-base flex items-center justify-between">
-                <span class="truncate">${p.name}</span> ${kingBadge}
+        <li class="bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600 shadow-sm overflow-hidden flex flex-col transition-colors">
+            <!-- Header (กดเพื่อเปิด/ปิด Dropdown) -->
+            <div onclick="togglePlayerStats(${i})" class="p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors flex flex-col gap-1.5 select-none">
+                <div class="font-bold text-gray-800 dark:text-gray-100 text-sm sm:text-base flex items-center justify-between">
+                    <div class="flex items-center truncate">
+                        <span class="truncate">${p.name}</span> ${kingBadge}
+                    </div>
+                    <span id="player-stats-icon-${i}" class="text-gray-400 transition-transform duration-300 text-xs ml-2">▼</span>
+                </div>
+                <div class="text-xs text-gray-600 dark:text-gray-300 flex justify-between font-medium">
+                    <span>ชนะ: <b class="text-green-600 dark:text-green-400 text-sm">${p.wins}</b></span>
+                    <span>ลง: ${p.gamesPlayed}</span>
+                </div>
             </div>
-            <div class="text-xs text-gray-600 dark:text-gray-300 flex justify-between font-medium">
-                <span>ชนะ: <b class="text-green-600 dark:text-green-400 text-sm">${p.wins}</b></span>
-                <span>ลง: ${p.gamesPlayed}</span>
+            
+            <!-- Expanded Details (รายละเอียดด้านใน) -->
+            <div id="player-stats-detail-${i}" class="hidden px-3 pb-3 pt-2 border-t border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800/80">
+                <div class="grid grid-cols-2 gap-2 text-xs text-gray-700 dark:text-gray-300 mb-3 mt-1">
+                    <div class="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg border border-blue-100 dark:border-blue-800/50 text-center shadow-inner">
+                        <div class="text-[10px] text-blue-600 dark:text-blue-400 font-bold mb-0.5">🏠 เล่นเหย้า</div>
+                        <div class="text-sm font-bold text-gray-800 dark:text-gray-200">${p.homeGames}</div>
+                    </div>
+                    <div class="bg-orange-50 dark:bg-orange-900/20 p-2 rounded-lg border border-orange-100 dark:border-orange-800/50 text-center shadow-inner">
+                        <div class="text-[10px] text-orange-600 dark:text-orange-400 font-bold mb-0.5">🚀 เล่นเยือน</div>
+                        <div class="text-sm font-bold text-gray-800 dark:text-gray-200">${p.awayGames}</div>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 flex items-center gap-1">🤝 สถิติการจับคู่</div>
+                    <div class="flex flex-wrap gap-1.5">
+                        ${partnerHTML}
+                    </div>
+                </div>
             </div>
         </li>
     `}).join('');
 }
 
-// ================= วาดรูป A4 (อัปเกรดแก้ชื่อชน Game X) =================
+// ฟังก์ชันเปิด/ปิดรายละเอียดสถิติผู้เล่น
+function togglePlayerStats(index) {
+    const detail = document.getElementById(`player-stats-detail-${index}`);
+    const icon = document.getElementById(`player-stats-icon-${index}`);
+    if (detail.classList.contains('hidden')) {
+        detail.classList.remove('hidden');
+        icon.style.transform = 'rotate(180deg)';
+    } else {
+        detail.classList.add('hidden');
+        icon.style.transform = 'rotate(0deg)';
+    }
+}
+
+// ================= วาดรูป A4 =================
 function drawMatchListCanvas(matches) {
     const canvas = document.getElementById('matchListCanvas');
     const ctx = canvas.getContext('2d');
@@ -901,12 +1058,12 @@ function copyShareLink(type) {
     if (type === 'admin') {
         shareUrl += '&admin=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert('👑 คัดลอก "ลิงก์กรรมการ" สำเร็จ!');
+            alert('👑 คัดลอก "ลิงก์กรรมการ" สำเร็จ!\nโปรดเซฟลิงก์นี้เก็บไว้ หากเผลอปิดเว็บให้เปิดลิงก์นี้เพื่อกู้คะแนนกลับมาครับ');
         }).catch(err => prompt('คัดลอกไม่ได้ กรุณาก๊อปปี้ลิงก์นี้:', shareUrl));
     } else if (type === 'viewer') {
         shareUrl += '&live=' + currentRoomId;
         navigator.clipboard.writeText(shareUrl).then(() => {
-            alert('🔗 คัดลอก "ลิงก์คนดู" สำเร็จ!');
+            alert('🔗 คัดลอก "ลิงก์คนดู" สำเร็จ!\nนำไปแชร์ให้เพื่อนๆ ดูได้เลย (ลิงก์นี้ฝังคะแนนล่าสุดไว้แล้วด้วยครับ!)');
         }).catch(err => prompt('คัดลอกไม่ได้ กรุณาก๊อปปี้ลิงก์นี้:', shareUrl));
     }
 }
